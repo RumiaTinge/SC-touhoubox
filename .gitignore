@@ -1,0 +1,45 @@
+# ── 构建产物 ─────────────────────────────────────
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.pdb
+
+# ── 打包输出（build.ps1 生成）──────────────────
+/dist/
+
+# ── 主程序产物（根目录这份是部署出来的，不是源码）──
+/SC-touhoubox.exe
+/SC-touhoubox.dll
+/SC-touhoubox.deps.json
+/SC-touhoubox.runtimeconfig.json
+/Nmpq.dll
+
+# ── 用户数据 / 运行日志：不进仓库（talents.json 除外，那是天赋树网页的数据）──
+# 注意必须写 /data/* 而不是 /data/，否则父目录被排除后 ! 规则无法把它捞回来
+/data/*
+!/data/talents.json
+/toolbox.log
+/toolbox.log.old
+/debug.log
+*.log
+
+# ── 本地工作目录（截图、备份、反编译镜像、临时逆向工具）──
+/_shots/
+/_backup/
+/_backup_original/
+/_resources/
+/_src/
+/_tools/
+
+# ── 逆向出来的游戏原文（体积大且属于游戏版权内容）──
+/tools/data/GameStrings*.txt
+
+# ── 开发/分析用的东西：留在本机，不进仓库 ──────────
+# （tools/ 是逆向分析工具，talent_tree*.html 是天赋树网页版，
+#   data/ 是网页版的数据，_notes/ 是开发笔记）
+/tools/
+/talent_tree.html
+/talent_tree2.html
+/data/
+/_notes/

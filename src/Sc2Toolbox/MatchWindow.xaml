@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window x:Class="Sc2Toolbox.MatchWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="对局详情" Height="780" Width="1180" WindowStartupLocation="CenterOwner" Background="{StaticResource B.Bg}" Foreground="{StaticResource B.Text}" FontFamily="Microsoft YaHei UI" xmlns:sc2toolbox="clr-namespace:Sc2Toolbox;assembly=SC-touhoubox">
+  <FrameworkElement.Resources>
+    <ResourceDictionary>
+      <DataTemplate x:Key="IIcon">
+        <Border Width="26" Height="26" Margin="0,0,3,3" CornerRadius="5" ClipToBounds="True" Background="{StaticResource B.Card2}" ToolTip="{Binding Tip}">
+          <Image Stretch="UniformToFill" Source="{Binding Src}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate x:Key="ISmall">
+        <Border Width="20" Height="20" Margin="0,0,2,2" CornerRadius="4" ClipToBounds="True" Background="{StaticResource B.Card2}" ToolTip="{Binding Tip}">
+          <Image Stretch="UniformToFill" Source="{Binding Src}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate x:Key="PRow">
+        <Border Padding="7,5" Margin="0,0,0,3" CornerRadius="8" Background="{Binding RowBrush}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Width="46" Height="46" CornerRadius="8" ClipToBounds="True" VerticalAlignment="Top" Background="{StaticResource B.Card2}">
+              <Image Stretch="UniformToFill" Source="{Binding Img}" />
+            </Border>
+            <StackPanel Grid.Column="1" Margin="9,0,6,0">
+              <TextBlock TextTrimming="CharacterEllipsis" Style="{StaticResource Body}" Text="{Binding Name}" />
+              <TextBlock TextWrapping="Wrap" Style="{StaticResource Muted}" Text="{Binding Sub}" />
+              <ItemsControl Margin="0,3,0,0" ItemTemplate="{StaticResource IIcon}" ItemsSource="{Binding Abilities}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <ItemsControl ItemTemplate="{StaticResource IIcon}" ItemsSource="{Binding Spells}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <ItemsControl ItemTemplate="{StaticResource IIcon}" ItemsSource="{Binding Runes}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <ItemsControl ItemTemplate="{StaticResource IIcon}" ItemsSource="{Binding Stats}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <TextBlock Margin="0,2,0,1" Style="{StaticResource Muted}" Text="{Binding SeqLabel}" />
+              <ItemsControl ItemTemplate="{StaticResource ISmall}" ItemsSource="{Binding Seq}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+            </StackPanel>
+            <StackPanel Grid.Column="2" VerticalAlignment="Top">
+              <TextBlock HorizontalAlignment="Right" Style="{StaticResource Body}" Text="{Binding Kda}" />
+              <TextBlock HorizontalAlignment="Right" Style="{StaticResource Muted}" Text="{Binding Mmr}" Foreground="{Binding MmrBrush}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </DataTemplate>
+    </ResourceDictionary>
+  </FrameworkElement.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+    <StackPanel>
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Width="3" CornerRadius="2" Background="{StaticResource B.Accent}" Margin="0,2,14,2" />
+          <StackPanel Grid.Column="1">
+            <TextBlock Name="TxtTitle" Style="{StaticResource H2}" FontSize="18" />
+            <TextBlock Name="TxtSub" Style="{StaticResource Muted}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,6,12">
+          <StackPanel>
+            <TextBlock Name="TxtTeam1" Style="{StaticResource H2}" />
+            <ItemsControl Name="ListTeam1" ItemTemplate="{StaticResource PRow}" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="1" Style="{StaticResource Card}" Margin="6,0,0,12">
+          <StackPanel>
+            <TextBlock Name="TxtTeam2" Style="{StaticResource H2}" />
+            <ItemsControl Name="ListTeam2" ItemTemplate="{StaticResource PRow}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+      <Border Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Text="说明" Style="{StaticResource H2}" />
+          <TextBlock Name="TxtNote" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

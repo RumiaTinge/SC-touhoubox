@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="Sc2Toolbox.app" />
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <!-- 测试用清单：asInvoker = 普通权限启动，不再自动提权。
+             代价：星际争霸 II 以高完整性级别运行，普通权限进程的注入/PostMessage 会被
+             Windows 的 UIPI 静默挡下 —— 也就是「防挂机保活」在游戏里不生效，
+             界面上会自己提示「当前不是管理员身份运行」。
+             正式交付请用默认的 app.manifest（requireAdministrator）：
+                 dotnet build -c Release            （管理员版）
+                 dotnet build -c Release -p:NoAdmin=true （测试版） -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>
