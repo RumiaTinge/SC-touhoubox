@@ -1,11 +1,15 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 
 namespace Sc2Toolbox;
 
@@ -67,7 +71,19 @@ public sealed class PresetWindow : Window
 
 	private readonly TextBox[] _statBox = new TextBox[6];
 
-	private readonly TextBox[] _tailBox = new TextBox[8];
+	private readonly ComboBox[] _tailBox = new ComboBox[8];
+
+	/// <summary>技能栏 / 辅助技能：图标本身就是按钮，点一下弹出图标网格挑一个。</summary>
+	private readonly Button[] _tailBtn = new Button[8];
+
+	/// <summary>每个技能栏当前可选的技能下标（按钮弹窗里的顺序）。</summary>
+	private readonly List<int>[] _tailList = new List<int>[8];
+
+	private Popup _pickPopup;
+
+	private WrapPanel _pickPanel;
+
+	private int _pickSlot = -1;
 
 	private readonly RadioButton[] _schoolRadio = new RadioButton[5];
 
@@ -188,7 +204,7 @@ public sealed class PresetWindow : Window
 
 		TextBlock textBlock2 = new TextBlock
 		{
-			Text = "提示：游戏运行中改银行会在退出时被游戏回写覆盖，请先关游戏再保存。保存前会自动备份一份 .sctb.bak。\n"
+			Text = "提示：游戏运行中改存档会在退出时被游戏回写覆盖，请先关游戏再保存。保存前会自动备份一份 .sctb.bak。\n"
 				+ "天赋格上的提示里有该天赋的游戏内说明；没有说明的天赋（游戏里没写文案）只显示名字。",
 			Foreground = _muted,
 			FontSize = 11.0,
@@ -318,38 +334,45 @@ public sealed class PresetWindow : Window
 		{
 			grid.ColumnDefinitions.Add(new ColumnDefinition
 			{
-				Width = new GridLength(192.0)
+				Width = new GridLength(198.0)
 			});
 		}
-		for (int row = 0; row < 7; row++)
-		{
-			grid.RowDefinitions.Add(new RowDefinition
-			{
-				Height = GridLength.Auto
-			});
-		}
+		// 一列 = 一个派系：整列带派系底色 + 顶部派系名，里面 6 排天赋整列居中
 		for (int s2 = 0; s2 < 5; s2++)
 		{
-			TextBlock textBlock = new TextBlock
+			Color color = SchoolColor[s2];
+			Border border2 = new Border
+			{
+				Background = new SolidColorBrush(Color.FromArgb(24, color.R, color.G, color.B)),
+				BorderBrush = new SolidColorBrush(Color.FromArgb(90, color.R, color.G, color.B)),
+				BorderThickness = new Thickness(1.0),
+				CornerRadius = new CornerRadius(6.0),
+				Padding = new Thickness(4.0, 6.0, 4.0, 6.0),
+				Margin = new Thickness(3.0, 0.0, 3.0, 0.0)
+			};
+			StackPanel stackPanel = new StackPanel
+			{
+				HorizontalAlignment = HorizontalAlignment.Center
+			};
+			border2.Child = stackPanel;
+			stackPanel.Children.Add(new TextBlock
 			{
 				Text = SchoolName[s2],
-				Foreground = new SolidColorBrush(SchoolColor[s2]),
-				FontSize = 14.0,
+				Foreground = new SolidColorBrush(color),
+				FontSize = 15.0,
 				FontWeight = FontWeights.Bold,
 				HorizontalAlignment = HorizontalAlignment.Center,
-				Margin = new Thickness(0.0, 0.0, 0.0, 4.0)
-			};
-			Grid.SetRow(textBlock, 0);
-			Grid.SetColumn(textBlock, s2);
-			grid.Children.Add(textBlock);
-
+				Margin = new Thickness(0.0, 0.0, 0.0, 6.0)
+			});
 			for (int row2 = 0; row2 < 6; row2++)
 			{
 				FrameworkElement frameworkElement = BuildRow(s2, row2);
-				Grid.SetRow(frameworkElement, row2 + 1);
-				Grid.SetColumn(frameworkElement, s2);
-				grid.Children.Add(frameworkElement);
+				frameworkElement.HorizontalAlignment = HorizontalAlignment.Center;
+				stackPanel.Children.Add(frameworkElement);
 			}
+			Grid.SetRow(border2, 0);
+			Grid.SetColumn(border2, s2);
+			grid.Children.Add(border2);
 		}
 		return border;
 	}
@@ -360,20 +383,23 @@ public sealed class PresetWindow : Window
 		int[] array = TouhouRune.Layout[school][row];
 		Grid grid = new Grid
 		{
-			Margin = new Thickness(0.0, 1.0, 0.0, 1.0)
+			Margin = new Thickness(0.0, 2.0, 0.0, 2.0),
+			HorizontalAlignment = HorizontalAlignment.Center
 		};
+		// 三列固定宽度，保证 6 排之间「左 / 中 / 右」严格对齐（列内整体居中）
 		for (int i = 0; i < 3; i++)
 		{
 			grid.ColumnDefinitions.Add(new ColumnDefinition
 			{
-				Width = new GridLength(1.0, GridUnitType.Star)
+				Width = new GridLength(64.0)
 			});
 		}
 		int num = array.Length;
 		for (int j = 0; j < num; j++)
 		{
 			int rune = array[j];
-			int col = ((num == 1) ? 1 : ((num == 2) ? (j * 2) : j));
+			// 面板位置就是存档里的 slot：rune = 行*3 + 位（0 左 / 1 中 / 2 右）
+			int col = rune % 3;
 			Border border = new Border
 			{
 				Background = _bg,
@@ -439,6 +465,39 @@ public sealed class PresetWindow : Window
 
 	// ---------------------------------------------------------------- 底部：其余 8 项
 
+	/// <summary>技能栏 5 个槽的后缀（和站点 ability 图命名一致）。</summary>
+	private static readonly char[] SlotLetters = new char[5] { 't', 'q', 'w', 'e', 'r' };
+
+	/// <summary>辅助技能三栏的按键（存档下标 102/103/104）。</summary>
+	private static readonly char[] SpellLetters = new char[3] { 'd', 'f', 'g' };
+
+	private readonly Brush _pickOn = new SolidColorBrush(Color.FromRgb(0x4C, 0x8D, 0xFF));
+
+	private readonly Image[] _tailIcon = new Image[8];
+
+	/// <summary>某英雄在这一槽有没有技能图；没有就是「这个英雄没这个栏位」，界面里灰掉。</summary>
+	private static bool HeroHasAbilitySlot(int heroId, int slot)
+	{
+		if (heroId <= 0 || slot < 0 || slot >= SlotLetters.Length)
+		{
+			return false;
+		}
+		try
+		{
+			string path = Path.Combine(ImgCache.BundleDir, "ability");
+			if (!Directory.Exists(path))
+			{
+				return true;
+			}
+			string pattern = TouhouApi.Pad2(heroId) + "_*_" + slot + SlotLetters[slot] + ".jpg";
+			return Directory.GetFiles(path, pattern).Length > 0;
+		}
+		catch
+		{
+			return true;
+		}
+	}
+
 	private FrameworkElement BuildTail()
 	{
 		StackPanel stackPanel = new StackPanel
@@ -446,31 +505,270 @@ public sealed class PresetWindow : Window
 			Orientation = Orientation.Horizontal,
 			Margin = new Thickness(0.0, 10.0, 0.0, 0.0)
 		};
-		TextBlock textBlock = Label("技能栏 / 辅助技能（下标 97~104，与天赋无关）");
+		TextBlock textBlock = Label("辅助技能 / 技能栏（下标 97~104，与天赋无关）");
 		textBlock.VerticalAlignment = VerticalAlignment.Center;
 		textBlock.Margin = new Thickness(0.0, 0.0, 8.0, 0.0);
 		stackPanel.Children.Add(textBlock);
 		for (int i = 0; i < 8; i++)
 		{
-			int idx = 97 + i;
-			TextBox textBox = new TextBox
+			// 存档实际布局：[97][98][99] = 辅助技能 D/F/G，[100..104] = 技能栏 T/Q/W/E/R
+			// （已用站点 game/list 的 spells / abilitySet 逐条比对确认）
+			bool flag = i >= 3;
+			int slot = (flag ? (i - 3) : 0);
+			int spellSlot = (flag ? 0 : i);
+			int idx = (flag ? (100 + slot) : (97 + spellSlot));
+			StackPanel stackPanel2 = new StackPanel
 			{
-				Width = 34.0,
-				Margin = new Thickness(0.0, 0.0, 4.0, 0.0),
-				TextAlignment = TextAlignment.Center,
+				Orientation = Orientation.Vertical,
+				Margin = new Thickness(0.0, 0.0, 6.0, 0.0)
+			};
+			Border border = new Border
+			{
+				Width = 40.0,
+				Height = 40.0,
+				CornerRadius = new CornerRadius(4.0),
 				Background = _bg,
-				Foreground = _fg,
-				BorderBrush = _muted,
+				BorderBrush = _empty,
+				BorderThickness = new Thickness(1.0),
+				ClipToBounds = true
+			};
+			Image image = new Image
+			{
+				Stretch = Stretch.Uniform
+			};
+			border.Child = image;
+			// 图标本身就是按钮：点一下弹出图标网格换技能
+			Button button = new Button
+			{
+				Width = 40.0,
+				Height = 40.0,
+				Padding = new Thickness(0.0),
+				BorderThickness = new Thickness(0.0),
+				Background = Brushes.Transparent,
+				Cursor = Cursors.Hand,
+				Content = border,
+				ToolTip = (flag ? ("技能栏 " + slot + "（" + SlotLetters[slot] + "）") : ("辅助技能 " + spellSlot + "（" + SpellLetters[spellSlot] + "）")) + " · 点一下挑图标"
+			};
+			int captured = i;
+			button.Click += delegate
+			{
+				OpenPicker(captured);
+			};
+			_tailBtn[i] = button;
+			_tailIcon[i] = image;
+			stackPanel2.Children.Add(button);
+			TextBlock textBlock2 = new TextBlock
+			{
+				Text = (flag ? SlotLetters[slot].ToString() : SpellLetters[spellSlot].ToString()),
+				FontSize = 10.0,
+				Foreground = _muted,
+				HorizontalAlignment = HorizontalAlignment.Center,
+				Margin = new Thickness(0.0, 2.0, 0.0, 0.0),
 				ToolTip = "存档下标 " + idx
 			};
-			textBox.TextChanged += delegate
-			{
-				TailBox_Changed(idx);
-			};
-			_tailBox[i] = textBox;
-			stackPanel.Children.Add(textBox);
+			stackPanel2.Children.Add(textBlock2);
+			stackPanel.Children.Add(stackPanel2);
 		}
 		return stackPanel;
+	}
+
+	/// <summary>这个英雄这一槽有哪些技能图；技能号 = 文件名里第 2 段的数字 - 1。</summary>
+	private static List<int> AbilityIdsOf(int heroId, int slot)
+	{
+		List<int> list = new List<int>();
+		if (heroId <= 0 || slot < 0 || slot >= SlotLetters.Length)
+		{
+			return list;
+		}
+		try
+		{
+			string path = Path.Combine(ImgCache.BundleDir, "ability");
+			if (!Directory.Exists(path))
+			{
+				return list;
+			}
+			string[] files = Directory.GetFiles(path, TouhouApi.Pad2(heroId) + "_*_" + slot + SlotLetters[slot] + ".jpg");
+			foreach (string text in files)
+			{
+				string[] array = Path.GetFileNameWithoutExtension(text).Split('_');
+				int num;
+				if (array.Length == 3 && int.TryParse(array[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out num) && num >= 1 && !list.Contains(num - 1))
+				{
+					list.Add(num - 1);
+				}
+			}
+			list.Sort();
+		}
+		catch
+		{
+		}
+		return list;
+	}
+
+	/// <summary>辅助技能这一槽有哪些技能图（文件名就是「槽位_技能号」）。</summary>
+	private static List<int> SpellIdsOf(int slot)
+	{
+		List<int> list = new List<int>();
+		try
+		{
+			string path = Path.Combine(ImgCache.BundleDir, "spell");
+			if (!Directory.Exists(path))
+			{
+				return list;
+			}
+			string[] files = Directory.GetFiles(path, slot + "_*.jpg");
+			foreach (string text in files)
+			{
+				string[] array = Path.GetFileNameWithoutExtension(text).Split('_');
+				int num;
+				if (array.Length == 2 && int.TryParse(array[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out num))
+				{
+					list.Add(num);
+				}
+			}
+			list.Sort();
+		}
+		catch
+		{
+		}
+		return list;
+	}
+
+	/// <summary>下拉框里的一项：小图标 + 技能号。</summary>
+	private ComboBoxItem TailItem(string url, int id)
+	{
+		StackPanel stackPanel = new StackPanel
+		{
+			Orientation = Orientation.Horizontal
+		};
+		Image image = new Image
+		{
+			Width = 22.0,
+			Height = 22.0,
+			Stretch = Stretch.Uniform
+		};
+		try
+		{
+			image.Source = ImgCache.Get(url);
+			if (image.Source == null)
+			{
+				string url2 = url;
+				Image target = image;
+				System.Threading.Tasks.Task.Run(delegate
+				{
+					try
+					{
+						BitmapSource bitmapSource = ImgCache.Ensure(url2);
+						if (bitmapSource != null)
+						{
+							Dispatcher.BeginInvoke(new Action(delegate
+							{
+								target.Source = bitmapSource;
+							}));
+						}
+					}
+					catch
+					{
+					}
+				});
+			}
+		}
+		catch
+		{
+		}
+		stackPanel.Children.Add(image);
+		stackPanel.Children.Add(new TextBlock
+		{
+			Text = id.ToString(CultureInfo.InvariantCulture),
+			Foreground = _fg,
+			FontSize = 11.0,
+			VerticalAlignment = VerticalAlignment.Center,
+			Margin = new Thickness(6.0, 0.0, 0.0, 0.0)
+		});
+		return new ComboBoxItem
+		{
+			Content = stackPanel,
+			Tag = id
+		};
+	}
+
+	/// <summary>贴技能图：内存里有就直接用，没有就后台取（先翻 art\ 包）。</summary>
+	private void LoadTailImage(Image image, string url)
+	{
+		BitmapSource bitmapSource = ImgCache.Get(url);
+		image.Source = bitmapSource;
+		if (bitmapSource != null)
+		{
+			return;
+		}
+		Image target = image;
+		string url2 = url;
+		System.Threading.Tasks.Task.Run(delegate
+		{
+			try
+			{
+				BitmapSource bitmapSource2 = ImgCache.Ensure(url2);
+				if (bitmapSource2 != null)
+				{
+					Dispatcher.BeginInvoke(new Action(delegate
+					{
+						target.Source = bitmapSource2;
+					}));
+				}
+			}
+			catch
+			{
+			}
+		});
+	}
+
+	/// <summary>按当前英雄刷新底下一排技能图标与下拉框（英雄没这个栏位就整格暗掉）。</summary>
+	private void RefreshTailIcons()
+	{
+		int heroId = ((_hero == null) ? 0 : _hero.HeroId);
+		for (int i = 0; i < 8; i++)
+		{
+			try
+			{
+				// [97..99] = 辅助技能 D/F/G，[100..104] = 技能栏 T/Q/W/E/R
+				bool flag = i >= 3;
+				int slot = (flag ? (i - 3) : 0);
+				int spellSlot = (flag ? 0 : i);
+				int srcIdx = (flag ? (100 + slot) : (97 + spellSlot));
+				int num = ((srcIdx < _p.Length) ? _p[srcIdx] : 0);
+				List<int> list = (flag ? AbilityIdsOf(heroId, slot) : SpellIdsOf(spellSlot));
+				// 存档里的下标可能不在本地可选范围内（比如换了英雄 / 图还没下全），
+				// 也一并列出来，免得点了图标却看不到自己当前选的是哪个。
+				if (!list.Contains(num))
+				{
+					list.Insert(0, num);
+				}
+				_tailList[i] = list;
+				string name = (flag ? SkillText.HeroName(heroId, num + 1, slot) : SkillText.SpellName(spellSlot, num));
+				Button button = _tailBtn[i];
+				if (button != null)
+				{
+					button.IsEnabled = (list.Count > 0);
+					button.ToolTip = (flag ? ("技能栏 " + slot + "（" + SlotLetters[slot] + "）") : ("辅助技能 " + spellSlot + "（" + SpellLetters[spellSlot] + "）")) + ((name.Length > 0) ? ("\n" + name) : "") + "\n点一下挑图标";
+				}
+				Image image = _tailIcon[i];
+				if (image != null)
+				{
+					string text = (flag ? TouhouApi.AbilityImg(heroId, num, slot) : TouhouApi.SpellImg(spellSlot, num));
+					if (text.Length == 0)
+					{
+						image.Source = null;
+					}
+					else
+					{
+						LoadTailImage(image, text);
+					}
+				}
+			}
+			catch
+			{
+			}
+		}
 	}
 
 	// ---------------------------------------------------------------- 规则与刷新
@@ -757,15 +1055,93 @@ public sealed class PresetWindow : Window
 
 	private void TailBox_Changed(int idx)
 	{
-		if (_loading)
+		// 值已经写进 _p 了（弹窗里点的），这里只负责把图标刷新过来。
+		if (!_loading)
 		{
-			return;
+			RefreshTailIcons();
 		}
-		int num;
-		if (int.TryParse(_tailBox[idx - 97].Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out num))
+	}
+
+	/// <summary>点技能图标后弹出的选择网格。</summary>
+	private void OpenPicker(int i)
+	{
+		if (_pickPopup == null)
 		{
-			_p[idx] = num;
+			_pickPanel = new WrapPanel
+			{
+				Width = 210.0
+			};
+			Border child = new Border
+			{
+				Background = _bg,
+				BorderBrush = _muted,
+				BorderThickness = new Thickness(1.0),
+				CornerRadius = new CornerRadius(6.0),
+				Padding = new Thickness(6.0),
+				Child = _pickPanel
+			};
+			_pickPopup = new Popup
+			{
+				Child = child,
+				StaysOpen = false,
+				AllowsTransparency = true,
+				Placement = PlacementMode.Bottom
+			};
+			_pickPopup.Closed += delegate
+			{
+				_pickSlot = -1;
+			};
 		}
+		_pickSlot = i;
+		_pickPanel.Children.Clear();
+		int heroId = ((_hero == null) ? 0 : _hero.HeroId);
+		// [97..99] = 辅助技能 D/F/G，[100..104] = 技能栏 T/Q/W/E/R
+		bool flag = i >= 3;
+		int slot = (flag ? (i - 3) : 0);
+		int spellSlot = (flag ? 0 : i);
+		int srcIdx = (flag ? (100 + slot) : (97 + spellSlot));
+		int num = ((srcIdx < _p.Length) ? _p[srcIdx] : 0);
+		List<int> list = _tailList[i] ?? new List<int>();
+		foreach (int id in list)
+		{
+			string url = (flag ? TouhouApi.AbilityImg(heroId, id, slot) : TouhouApi.SpellImg(spellSlot, id));
+			Image image = new Image
+			{
+				Width = 32.0,
+				Height = 32.0,
+				Stretch = Stretch.Uniform
+			};
+			if (url.Length > 0)
+			{
+				LoadTailImage(image, url);
+			}
+			Button button = new Button
+			{
+				Width = 40.0,
+				Height = 40.0,
+				Margin = new Thickness(2.0),
+				Padding = new Thickness(0.0),
+				Background = _bg,
+				Cursor = Cursors.Hand,
+				Content = image,
+				ToolTip = (flag ? ("技能栏 " + slot + "（" + SlotLetters[slot] + "）· 下标 " + id) : ("辅助技能 " + spellSlot + "（" + SpellLetters[spellSlot] + "）· 下标 " + id)),
+				BorderThickness = new Thickness((id == num) ? 2.0 : 1.0),
+				BorderBrush = ((id == num) ? _pickOn : _muted)
+			};
+			int captured = id;
+			button.Click += delegate
+			{
+				if (srcIdx < _p.Length)
+				{
+					_p[srcIdx] = captured;
+				}
+				_pickPopup.IsOpen = false;
+				RefreshTailIcons();
+			};
+			_pickPanel.Children.Add(button);
+		}
+		_pickPopup.PlacementTarget = _tailBtn[i];
+		_pickPopup.IsOpen = true;
 	}
 
 	private void Radio_Changed(int school)
@@ -791,10 +1167,7 @@ public sealed class PresetWindow : Window
 			{
 				_statBox[i].Text = _p[i].ToString(CultureInfo.InvariantCulture);
 			}
-			for (int j = 0; j < 8; j++)
-			{
-				_tailBox[j].Text = _p[97 + j].ToString(CultureInfo.InvariantCulture);
-			}
+			RefreshTailIcons();
 			for (int k = 0; k < 5; k++)
 			{
 				_schoolRadio[k].IsChecked = (k == Math.Max(0, Math.Min(4, _p[6])));
@@ -961,7 +1334,7 @@ public sealed class PresetWindow : Window
 		{
 			return true;
 		}
-		return MessageBox.Show(this, "星际争霸II 正在运行，游戏退出时会把银行文件整个回写，覆盖掉这次的修改。\n\n仍要继续写入吗？", "游戏还在运行", MessageBoxButton.OKCancel, MessageBoxImage.Exclamation) == MessageBoxResult.OK;
+		return MessageBox.Show(this, "星际争霸II 正在运行，游戏退出时会把存档文件整个回写，覆盖掉这次的修改。\n\n仍要继续写入吗？", "游戏还在运行", MessageBoxButton.OKCancel, MessageBoxImage.Exclamation) == MessageBoxResult.OK;
 	}
 
 	private void Clear_Click(object sender, RoutedEventArgs e)

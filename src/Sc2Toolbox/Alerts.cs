@@ -16,6 +16,8 @@ public class Alerts
 
 	private bool _wasFull;
 
+	private bool _wasInRoom;
+
 	private bool _hasPrev;
 
 	private DateTime _lastBig = DateTime.MinValue;
@@ -55,12 +57,23 @@ public class Alerts
 			Big("房间满了（" + st.Count + "/" + num + "），马上要开了", s.AlertTextFull, AlertKind.Full);
 		}
 		_wasFull = flag;
-		if (Lobby.MyHandle.Length > 0 && !hashSet.Contains(Lobby.MyHandle))
+		// 开局判定必须严格：
+		//   1) 先得真的看到自己在房间列表里（否则刚开软件、还没进房间就会误报「开局了」）
+		//   2) 自己消失时，别人也必须一起消失（自己点「退出房间」时别人还在，不能算开局）
+		//   3) 房间里至少有过 2 个人（一个人退房间不算开局）
+		bool flag2 = Lobby.MyHandle.Length > 0 && hashSet.Contains(Lobby.MyHandle);
+		if (flag2)
+		{
+			_wasInRoom = true;
+			_goneSeen = 0;
+		}
+		else if (_wasInRoom && hashSet.Count == 0 && _prevCount >= 2)
 		{
 			_goneSeen++;
 		}
 		else
 		{
+			_wasInRoom = false;
 			_goneSeen = 0;
 		}
 		if (s.AlertOnMatchStart && _goneSeen == 2)

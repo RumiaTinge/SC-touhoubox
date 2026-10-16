@@ -17,6 +17,7 @@
   <SolidColorBrush x:Key="B.AccentSoft" Color="#294C8DFF" />
   <SolidColorBrush x:Key="B.Ok" Color="#FF3DD68C" />
   <SolidColorBrush x:Key="B.Warn" Color="#FFF5B942" />
+  <SolidColorBrush x:Key="B.WarnSoft" Color="#26F5B942" />
   <SolidColorBrush x:Key="B.Danger" Color="#FFF2706E" />
   <SolidColorBrush x:Key="B.DangerSoft" Color="#26F2706E" />
 

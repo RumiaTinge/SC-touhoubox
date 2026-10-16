@@ -223,7 +223,9 @@ public static class TouhouApi
 
 	public static string SpellImg(int slot, int spellId)
 	{
-		if (spellId <= 0)
+		// 站点和存档都是 0 基：0_0=生命恢复 0_1=魔法恢复 0_2=净化 0_3=立场护盾
+		// 2_0=雷达扫描 2_1=兴奋剂 2_2=立场 2_3=真视视野 1_0=闪烁
+		if (slot < 0 || spellId < 0)
 		{
 			return "";
 		}
@@ -232,7 +234,8 @@ public static class TouhouApi
 
 	public static string RuneImg(int column, int rune)
 	{
-		if (rune <= 0)
+		// rune 0 是合法天赋（第一排左边那个），不能当成「没选」
+		if (rune < 0)
 		{
 			return "";
 		}
@@ -261,15 +264,14 @@ public static class TouhouApi
 				{
 					num = 8;
 				}
-				for (int j = 0; j < num; j++)
+				// 原来是一个碎片画一个图标（点了 8 个就画 8 个），太占地方；
+				// 现在只画一个，数量用角标显示。
+				list.Add(new StatIcon
 				{
-					list.Add(new StatIcon
-					{
-						Id = InitStatIconIds[i],
-						Num = 0,
-						Tip = "初始属性碎片 " + InitStatIconIds[i]
-					});
-				}
+					Id = InitStatIconIds[i],
+					Num = num,
+					Tip = "初始属性碎片 " + InitStatIconIds[i] + " ×" + num
+				});
 			}
 		}
 		int[] array2 = Nums(p.StatSet);

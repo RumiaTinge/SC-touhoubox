@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -292,13 +292,22 @@ public static class TouhouChat
 	private const int MemChunk = 8 * 1024 * 1024;
 	private const int MemOverlap = 2048;
 
-	private static readonly byte[] ChatNeedle = Encoding.UTF8.GetBytes("</w></c>: ");
+	// 普通聊天是 "</w></c>: "，但表情消息没有 </w>（见下面 LiveRx2），
+	// 所以只认 "</c>: " —— 它是前者的子串，两种写法都能扫到。
+	private static readonly byte[] ChatNeedle = Encoding.UTF8.GetBytes("</c>: ");
 	// 真·聊天行的形状（与「聊天历史缓冲」里那些拼接串区分开：颜色标记必须紧跟频道）：
 	//   [所有玩家] <c val="00BB00"><w>玩家甲</w></c>: 正文
 	//   [所有玩家] <c val="FFFF00"><w>&lt;大力出奇迹&gt;<sp/>幾把刀</w></c>: 正文
 	// 后者带战队名：名字里是 HTML 转义过的尖括号 + <sp/> 分隔。
 	private static readonly Regex LiveRx = new Regex(
 		"^\\[(?<ch>[^\\]]*)\\]\\s*<c val=\"(?<col>[0-9A-Fa-f]{6})\"><w>(?<who>.*?)</w></c>:\\s?(?<msg>.*)$",
+		RegexOptions.Compiled);
+
+	// 表情消息走的是另一套更旧的写法：名字外面没有 <w></w>，直接包在 <c> 里。
+	//   [盟友] <c val="E55BB0"><喵呜喵呜> 樱羽艾玛</c>: <s val="No_Border"><img path="emoji/636.png"/></s>
+	// 之前的 needle 是 "</w></c>: "，这类消息一条都匹配不到，所以表情全丢了。
+	private static readonly Regex LiveRx2 = new Regex(
+		"^\\[(?<ch>[^\\]]*)\\]\\s*<c val=\"(?<col>[0-9A-Fa-f]{6})\">(?<who>[^<]*(?:<(?!/c>)[^>]*>[^<]*)*?)</c>:\\s?(?<msg>.*)$",
 		RegexOptions.Compiled);
 
 	/// <summary>累积的实时聊天（按首次出现的先后）。</summary>
@@ -466,12 +475,19 @@ public static class TouhouChat
 				{
 					continue;
 				}
+				// 内存里是按地址扫出来的，顺序不等于说话顺序。
+				// 用「第一次看到它的时刻」当时间戳，加完再按它重排。
+				cl.Offset = DateTime.Now.Ticks;
 				LiveLines.Add(cl);
 				added = true;
 			}
 			if (added || LiveLastHit == DateTime.MinValue)
 			{
 				LiveLastHit = DateTime.Now;
+				LiveLines.Sort(delegate(ChatLine a, ChatLine b)
+				{
+					return a.Offset.CompareTo(b.Offset);
+				});
 			}
 			while (LiveLines.Count > 400)
 			{
@@ -485,6 +501,10 @@ public static class TouhouChat
 	private static ChatLine ParseLive(string raw)
 	{
 		Match m = LiveRx.Match(raw);
+		if (!m.Success)
+		{
+			m = LiveRx2.Match(raw);
+		}
 		if (!m.Success)
 		{
 			return null;
@@ -900,6 +920,20 @@ public static class TouhouChat
 	/// <summary>表情图片的本地缓存目录。</summary>
 	public static string EmojiDir()
 	{
+		// 优先放在程序目录的 art\emoji 下，跟技能图一个地方，方便整包发出去；
+		// 程序目录不可写（比如装在 Program Files）才退回 %LOCALAPPDATA%。
+		try
+		{
+			string a = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "art", "emoji");
+			Directory.CreateDirectory(a);
+			string probe = Path.Combine(a, ".w");
+			File.WriteAllText(probe, "");
+			File.Delete(probe);
+			return a;
+		}
+		catch
+		{
+		}
 		string d = Path.Combine(
 			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 			"SC-touhoubox", "emoji");

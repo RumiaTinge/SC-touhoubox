@@ -481,7 +481,7 @@ public partial class App : System.Windows.Application
 				}
 				_tray = null;
 			}
-			_tray = new TrayIcon(LoadTrayIcon(), "SC-touhoubox · 房间悬浮窗 / 防踢保活 / 开局警报");
+			_tray = new TrayIcon(LoadTrayIcon(), "SC-touhoubox · 房间悬浮窗 / 挂机等房 / 开局警报");
 			_tray.LeftClick = () =>
 			{
 				ShowPanel();
@@ -542,7 +542,7 @@ public partial class App : System.Windows.Application
 			};
 			MenuItem menuItem3 = new MenuItem
 			{
-				Header = "立即保活一次"
+				Header = "立即等房一次"
 			};
 			menuItem3.Click += delegate
 			{

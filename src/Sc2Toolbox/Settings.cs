@@ -48,10 +48,6 @@ public class Settings
 
 	public bool PauseInMatch { get; set; } = true;
 
-	public bool IdleGuard { get; set; }
-
-	public int IdleGuardSec { get; set; } = 15;
-
 	public bool AlertEnabled { get; set; } = true;
 
 	public bool AlertOnRoomFull { get; set; } = true;
@@ -110,6 +106,12 @@ public class Settings
 
 	/// <summary>聊天记录里是否显示指令行（-vk / -save 之类）。默认不显示。</summary>
 	public bool OverlayChatCmds { get; set; }
+
+	/// <summary>主窗口里被折叠的卡片标题，一行一个。</summary>
+	public string FoldCards { get; set; } = "";
+
+	/// <summary>对战数据页显示「本地对局」而不是「在线对局」。</summary>
+	public bool P5LocalTab { get; set; }
 
 	public static string FilePath => Path.Combine(L.Dir, "settings.json");
 

@@ -231,8 +231,8 @@ public sealed class BankProfile
 }
 
 /// <summary>
-/// 定位并解析本机星际争霸 II 的东方月灵传银行文件（touhou.SC2Bank）。
-/// 银行文件其实是纯 XML，用 XDocument 直接读即可，不需要任何游戏进程或联网。
+/// 定位并解析本机星际争霸 II 的东方月灵传存档文件（touhou.SC2Bank）。
+/// 存档文件其实是纯 XML，用 XDocument 直接读即可，不需要任何游戏进程或联网。
 /// </summary>
 public static class TouhouBank
 {
@@ -333,7 +333,7 @@ public static class TouhouBank
 			XElement xElement = xDocument.Root;
 			if (xElement == null)
 			{
-				LastError = "银行文件是空的";
+				LastError = "存档文件是空的";
 				return null;
 			}
 			foreach (XElement item in xElement.Elements("Section"))
@@ -495,7 +495,7 @@ public static class TouhouBank
 		}
 	}
 
-	/// <summary>本机所有银行档案，当前账号优先、其次按修改时间倒序。</summary>
+	/// <summary>本机所有存档档案，当前账号优先、其次按修改时间倒序。</summary>
 	public static List<BankProfile> LoadAll()
 	{
 		List<BankProfile> list = new List<BankProfile>();
@@ -651,7 +651,7 @@ public static class TouhouBank
 
 	/// <summary>
 	/// 往 touhou.SC2Bank 写一条加点方案：定位（或新建）dbHeroNN_config 段与指定时间戳的 Key。
-	/// 写之前会先备份一份 .sctb.bak。注意：游戏运行中改银行会被游戏退出时回写覆盖，务必先关游戏。
+	/// 写之前会先备份一份 .sctb.bak。注意：游戏运行中改存档会被游戏退出时回写覆盖，务必先关游戏。
 	/// </summary>
 	public static bool SavePreset(string bankPath, int heroId, string keyName, int[] points, string name, out string error)
 	{

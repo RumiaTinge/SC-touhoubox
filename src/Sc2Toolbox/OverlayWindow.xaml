@@ -13,7 +13,7 @@
     <StackPanel>
       <Border Name="Head" Background="#00FFFFFF" Padding="13,10,9,10" MouseLeftButtonDown="Head_MouseLeftButtonDown">
         <FrameworkElement.ContextMenu>
-          <ContextMenu>
+          <ContextMenu Opened="Menu_Opened" Closed="Menu_Closed">
             <MenuItem Header="打开设置面板" Click="Menu_Settings" />
             <MenuItem Name="MiClickThrough" Header="鼠标穿透（点不到）" IsCheckable="True" Click="Menu_ClickThrough" />
             <MenuItem Name="MiChat" Header="显示聊天记录" IsCheckable="True" Click="Menu_Chat" />
@@ -118,7 +118,7 @@
       <Border Height="1" Background="#14FFFFFF" Margin="0,4,0,0" />
       <StackPanel Margin="13,9,13,12">
         <TextBlock Name="TxtMe" Text="" Foreground="{StaticResource B.Accent2}" FontSize="11.5" TextWrapping="Wrap" Visibility="Collapsed" />
-        <TextBlock Name="TxtKeep" Text="保活：等待中" Foreground="#FF9AA7B4" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,0" />
+        <TextBlock Name="TxtKeep" Text="等房：等待中" Foreground="#FF9AA7B4" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,0" />
         <TextBlock Name="TxtData" Text="房间接口：连接中…" Foreground="{StaticResource B.Dim}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" />
         <TextBlock Name="TxtNote" Text="" Foreground="{StaticResource B.Warn}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
       </StackPanel>

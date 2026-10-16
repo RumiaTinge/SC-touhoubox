@@ -67,8 +67,13 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		_flush.Start();
 		SyncFromSettings();
 		_ready = true;
+		P5Mode_Changed(this, null);
+		base.Loaded += delegate
+		{
+			RestoreFolds();
+		};
 		RefreshKeepStatus();
-		TxtAboutPaths.Text = "设置文件：" + Settings.FilePath + "\n日志文件：" + L.File + "\n房间接口：POST http://127.0.0.1:" + Ctx.S.LobbyPort + "/lobbyPlayerList\n提示：如果「静默」保活一直失败，把本工具改成以管理员身份运行。";
+		TxtAboutPaths.Text = "设置文件：" + Settings.FilePath + "\n日志文件：" + L.File + "\n房间接口：POST http://127.0.0.1:" + Ctx.S.LobbyPort + "/lobbyPlayerList\n提示：如果「静默」等房一直失败，把本工具改成以管理员身份运行。";
 		TbLog.Text = L.Tail(200);
 		RefreshBank();
 		_bankWatch = new DispatcherTimer
@@ -222,8 +227,6 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			TbFocusEvery.Text = s.FocusEverySec.ToString();
 			SwNoInterrupt.IsChecked = s.DontInterruptTyping;
 			SwPauseInMatch.IsChecked = s.PauseInMatch;
-			SwIdleGuard.IsChecked = s.IdleGuard;
-			TbIdleSec.Text = s.IdleGuardSec.ToString();
 			SwAlert.IsChecked = s.AlertEnabled;
 			SwOnFull.IsChecked = s.AlertOnRoomFull;
 			SwOnStart.IsChecked = s.AlertOnMatchStart;
@@ -249,6 +252,8 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			}
 			SwCloseToTray.IsChecked = s.CloseToTray;
 			SwTrayHint.IsChecked = s.TrayHintOnClose;
+			RbLocal.IsChecked = s.P5LocalTab;
+			RbOnline.IsChecked = !s.P5LocalTab;
 			LoadPreview();
 		}
 		finally
@@ -279,7 +284,6 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		settings.KeepMode = keepMode;
 		s.DontInterruptTyping = SwNoInterrupt.IsChecked == true;
 		s.PauseInMatch = SwPauseInMatch.IsChecked == true;
-		s.IdleGuard = SwIdleGuard.IsChecked == true;
 		s.AlertEnabled = SwAlert.IsChecked == true;
 		s.AlertOnRoomFull = SwOnFull.IsChecked == true;
 		s.AlertOnMatchStart = SwOnStart.IsChecked == true;
@@ -347,7 +351,6 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		Settings s = Ctx.S;
 		s.IntervalSec = ParseNum(TbInterval, 5, 600, 30);
 		s.FocusEverySec = ParseNum(TbFocusEvery, 10, 3600, 90);
-		s.IdleGuardSec = ParseNum(TbIdleSec, 1, 3600, 15);
 		s.RoomSlots = ParseNum(TbSlots, 2, 10, 10);
 		s.ToastSeconds = ParseNum(TbToastSec, 1, 60, 4);
 		s.AlertAutoHideSec = ParseNum(TbAutoHide, 0, 3600, 30);
@@ -384,6 +387,10 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			P3.Visibility = ((Nav3.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
 			P5.Visibility = ((Nav5.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
 			P4.Visibility = ((Nav4.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
+			base.Dispatcher.BeginInvoke((Action)delegate
+			{
+				RestoreFolds();
+			}, DispatcherPriority.Loaded);
 		}
 	}
 
@@ -487,24 +494,194 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		}
 	}
 
-	private void BtnFixFs_Click(object sender, RoutedEventArgs e)
+	// 对战数据页：在线对局 / 本地对局 分开展示
+	private void P5Mode_Changed(object sender, RoutedEventArgs e)
 	{
-		if (Sc2.DisableFullscreenOptimizations(out var info))
+		if (!_ready)
 		{
-			L.W("已为游戏关闭全屏优化：" + info + "（需要完全退出游戏再进才生效）");
-			TxtFsState.Text = "已关闭全屏优化：" + info + "\n请完全退出星际争霸 II（连战网一起退出更保险）再重新进入游戏，悬浮窗就会显示在游戏画面上了。\n想还原：把上面这个程序从「兼容性」设置里去掉「禁用全屏优化」即可。";
-			try
+			return;
+		}
+		bool flag = RbLocal.IsChecked == true;
+		ShowCard(P5Me, !flag);
+		ShowCard(P5Matches, !flag);
+		ShowCard(P5Heroes, !flag);
+		ShowCard(P5Rank, !flag);
+		ShowCard(P5Bank, flag);
+		ShowCard(P5BankHeroes, flag);
+		ShowCard(P5BankConfigs, flag);
+		Ctx.S.P5LocalTab = flag;
+		Ctx.S.Save();
+		base.Dispatcher.BeginInvoke((Action)delegate
+		{
+			RestoreFolds();
+		}, DispatcherPriority.Loaded);
+	}
+
+	private static void ShowCard(UIElement el, bool on)
+	{
+		if (el != null)
+		{
+			el.Visibility = (on ? Visibility.Visible : Visibility.Collapsed);
+		}
+	}
+
+	// 点卡片标题折叠 / 展开这张卡片（CardHead 样式用 EventSetter 挂上来的）
+	private void CardHead_Click(object sender, MouseButtonEventArgs e)
+	{
+		TextBlock textBlock = sender as TextBlock;
+		if (textBlock == null)
+		{
+			return;
+		}
+		string title = TitleOf(textBlock);
+		textBlock.Tag = title;
+		SetCardFold(textBlock, !IsFolded(textBlock), true);
+		e.Handled = true;
+	}
+
+	// 标题上带 ▾ / ▸ 前缀；Tag 存不带前缀的纯标题
+	private static string TitleOf(TextBlock tb)
+	{
+		if (tb.Tag is string)
+		{
+			return (string)tb.Tag;
+		}
+		string text = tb.Text ?? "";
+		if (text.StartsWith("▾ ") || text.StartsWith("▸ "))
+		{
+			text = text.Substring(2);
+		}
+		return text;
+	}
+
+	private static bool IsFolded(TextBlock tb)
+	{
+		return (tb.Text ?? "").StartsWith("▸");
+	}
+
+	// 卡片根 StackPanel：从标题往上找到「父级是 Border 的那个 StackPanel」
+	private static StackPanel CardBody(TextBlock tb)
+	{
+		DependencyObject dependencyObject = tb;
+		while (dependencyObject != null)
+		{
+			DependencyObject parent = VisualTreeHelper.GetParent(dependencyObject);
+			if (parent == null)
 			{
-				MessageBox.Show("已为下面这个程序关闭 Windows 全屏优化：\n\n" + info + "\n\n请完全退出星际争霸 II（连战网一起退出更保险）再重新进入游戏，悬浮窗就会显示在游戏画面上。", "SC2 工具箱");
-				return;
+				return null;
 			}
-			catch
+			StackPanel stackPanel = parent as StackPanel;
+			if (stackPanel != null && stackPanel.Parent is Border)
 			{
-				return;
+				return stackPanel;
+			}
+			dependencyObject = parent;
+		}
+		return null;
+	}
+
+	// 标题所在的直接子元素（标题可能在 Grid 里，和「编辑…」按钮同一行）
+	private static UIElement HeaderRow(StackPanel body, TextBlock tb)
+	{
+		foreach (UIElement child in body.Children)
+		{
+			DependencyObject dependencyObject = child;
+			if (dependencyObject == tb)
+			{
+				return child;
+			}
+			if (child is DependencyObject && IsAncestor(child, tb))
+			{
+				return child;
 			}
 		}
-		L.W("关闭全屏优化失败：" + info);
-		TxtFsState.Text = "没能自动设置：" + info + "\n可以手动来：右键星际争霸 II 的快捷方式 → 属性 → 兼容性 → 勾选「禁用全屏优化」→ 确定，然后重启游戏。";
+		return null;
+	}
+
+	private static bool IsAncestor(DependencyObject ancestor, DependencyObject node)
+	{
+		DependencyObject dependencyObject = node;
+		while (dependencyObject != null)
+		{
+			if (dependencyObject == ancestor)
+			{
+				return true;
+			}
+			dependencyObject = VisualTreeHelper.GetParent(dependencyObject);
+		}
+		return false;
+	}
+
+	private void SetCardFold(TextBlock tb, bool collapse, bool save)
+	{
+		StackPanel stackPanel = CardBody(tb);
+		if (stackPanel != null)
+		{
+			UIElement uIElement = HeaderRow(stackPanel, tb);
+			bool flag = false;
+			foreach (UIElement child in stackPanel.Children)
+			{
+				if (flag)
+				{
+					child.Visibility = (collapse ? Visibility.Collapsed : Visibility.Visible);
+				}
+				else if (child == uIElement)
+				{
+					flag = true;
+				}
+			}
+		}
+		string title = TitleOf(tb);
+		tb.Tag = title;
+		tb.Text = (collapse ? "▸ " : "▾ ") + title;
+		if (save)
+		{
+			SaveFold(title, collapse);
+		}
+	}
+
+	private void SaveFold(string title, bool collapsed)
+	{
+		Settings s = Ctx.S;
+		List<string> list = new List<string>((s.FoldCards ?? "").Split(new char[1] { '\n' }, StringSplitOptions.RemoveEmptyEntries));
+		list.Remove(title);
+		if (collapsed)
+		{
+			list.Add(title);
+		}
+		s.FoldCards = string.Join("\n", list);
+		s.Save();
+	}
+
+	private void RestoreFolds()
+	{
+		HashSet<string> hashSet = new HashSet<string>((Ctx.S.FoldCards ?? "").Split(new char[1] { '\n' }, StringSplitOptions.RemoveEmptyEntries));
+		// 不管有没有折叠过都要跑一遍：把每张卡片标题前面的 ▾ / ▸ 三角补上，
+		// 否则第一次打开时看不到任何可点的提示（用户反馈「只有第一次点击后才会出现三角」）。
+		foreach (TextBlock item in FindCardHeads(this))
+		{
+			string title = TitleOf(item);
+			item.Tag = title;
+			SetCardFold(item, hashSet.Contains(title), false);
+		}
+	}
+
+	private IEnumerable<TextBlock> FindCardHeads(DependencyObject root)
+	{
+		int childrenCount = VisualTreeHelper.GetChildrenCount(root);
+		for (int i = 0; i < childrenCount; i++)
+		{
+			DependencyObject child = VisualTreeHelper.GetChild(root, i);
+			TextBlock textBlock = child as TextBlock;
+			if (textBlock != null && textBlock.Style == (Style)FindResource("CardHead"))
+			{
+				yield return textBlock;
+			}
+			foreach (TextBlock item in FindCardHeads(child))
+			{
+				yield return item;
+			}
+		}
 	}
 
 	private void BtnKeepStart_Click(object sender, RoutedEventArgs e)
@@ -529,7 +706,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 	{
 		if (!Ctx.Keep.Running)
 		{
-			L.W("还没启动保活，先点「启动保活」");
+			L.W("还没启动，先点「启动」");
 			RefreshKeepStatus();
 		}
 		else
@@ -728,7 +905,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		try
 		{
 			KeepAlive keep = Ctx.Keep;
-			string text = (keep.Running ? "保活：运行中" : "保活：已停止");
+			string text = (keep.Running ? "挂机等房：运行中" : "挂机等房：已停止");
 			if (keep.Running)
 			{
 				text = text + " · 方式 " + ModeName(Ctx.S.KeepMode) + " · 间隔 " + Ctx.S.IntervalSec + " 秒";
@@ -756,7 +933,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			// 侧边栏底部状态卡
 			if (SideKeep != null)
 			{
-				SideKeep.Text = (keep.Running ? ("保活运行中 · " + ModeName(Ctx.S.KeepMode)) : "保活已停止");
+				SideKeep.Text = (keep.Running ? ("挂机等房运行中 · " + ModeName(Ctx.S.KeepMode)) : "挂机等房已停止");
 				LobbyState side = Ctx.Watcher.Last;
 				if (side != null && side.Ok)
 				{
@@ -1057,6 +1234,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 	private List<BankProfile> _bankProfiles = new List<BankProfile>();
 
 	private bool _bankFilling;
+	private PresetWindow _presetWin;
 
 	private BankProfile _bankCur;
 
@@ -1208,7 +1386,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 				list.Add(new TouhouRow
 				{
 					Img = ((item.HeroId > 0) ? ImgCache.Cached(TouhouApi.HeroImg(item.HeroId)) : null),
-					Title = "dbHero" + TouhouApi.Pad2(item.HeroId) + " " + item.Name,
+					Title = item.Name,
 					Sub = string.Format("{0} 场 · {1} 胜 {2} 负{3}", item.Total, item.Win, item.Lose, (item.Leave > 0) ? (" " + item.Leave + " 离开") : ""),
 					Right = string.Format("胜率 {0:0.#}%", item.WinRate)
 				});
@@ -1226,7 +1404,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			});
 		}
 		ListBankHeroes.ItemsSource = list;
-		BankHeroSub.Text = string.Format("共 {0} 个英雄、合计 {1} 场（全局 total = {2}）。数据来自 touhou.SC2Bank 的 dbHeroNN 段，按场次从多到少。", num2, num, p.Total);
+		BankHeroSub.Text = string.Format("共 {0} 个英雄 · 合计 {1} 场 · 全局 {2} 场", num2, num, p.Total);
 		BuildBankConfigs(p);
 	}
 
@@ -1390,8 +1568,22 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 				MessageBox.Show("没读到 touhou.SC2Bank。", "技能预设加点", MessageBoxButton.OK, MessageBoxImage.Information);
 				return;
 			}
-			new PresetWindow(bankProfile).ShowDialog();
-			BuildBankConfigs(bankProfile);
+			// 用非模态显示：ShowDialog 会把整个进程的其它窗口（含房间悬浮窗）一起禁用
+			if (_presetWin == null || !_presetWin.IsLoaded)
+			{
+				_presetWin = new PresetWindow(bankProfile);
+				_presetWin.Owner = this;
+				_presetWin.Closed += delegate
+				{
+					_presetWin = null;
+					BuildBankConfigs(TouhouBank.LoadBest());
+				};
+				_presetWin.Show();
+			}
+			else
+			{
+				_presetWin.Activate();
+			}
 		}
 		catch (Exception ex)
 		{
@@ -1423,43 +1615,92 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		foreach (BankHeroStat item2 in list2)
 		{
 			BankCfgRow bankCfgRow = new BankCfgRow();
-			bankCfgRow.Title = "dbHero" + TouhouApi.Pad2(item2.HeroId) + " " + item2.Name;
+			bankCfgRow.Title = item2.Name;
 			bankCfgRow.Sub = ConfigTimeText(item2.LastConfigAt) + " · " + item2.PointSum + " 点";
-			int[] array = new int[15];
-			for (int i = 0; i < 15 && i < item2.Points.Length; i++)
+			if (item2.HeroId > 0)
 			{
-				array[i] = item2.Points[i];
+				try
+				{
+					bankCfgRow.Img = ImgCache.Ensure(TouhouApi.HeroImg(item2.HeroId));
+				}
+				catch
+				{
+				}
 			}
-			for (int j = 0; j < 15; j++)
+			int[] points = item2.Points;
+			// [0..5] 初始属性：恰好一项为 8（位置即主属性）。6 项合成一格，省地方。
+			int numMain = 0;
+			int numTotal = 0;
+			string textStats = "";
+			for (int i = 0; i < 6; i++)
 			{
-				int num2 = array[j];
-				int iconId = StatSlotIconIds[j];
-				BitmapSource bitmapSource = ImgCache.Ensure(TouhouApi.StatImg(iconId));
-				string text;
-				string label;
-				if (j < 6)
+				int num2 = ((i < points.Length) ? points[i] : 0);
+				if (num2 > points[Math.Max(0, Math.Min(points.Length - 1, numMain))])
 				{
-					label = ((num2 > 0) ? num2.ToString() : "");
-					text = string.Format("初始属性 · {0}：{1} 个碎片（站点 initStats 的上限就是 8）", StatName(j), (num2 > 0) ? num2.ToString() : "0");
+					numMain = i;
 				}
-				else if (j == 6)
+				numTotal += num2;
+				textStats = textStats + ((textStats.Length > 0) ? " · " : "") + StatName(i) + " " + num2;
+			}
+			bankCfgRow.Cells.Add(new BankCfgCell
+			{
+				Icon = ImgCache.Ensure(TouhouApi.StatImg(StatSlotIconIds[numMain])),
+				Num = ((numTotal > 0) ? numTotal.ToString() : ""),
+				Alpha = ((numTotal > 0) ? 1.0 : 0.3),
+				Tip = "初始属性（主属性 " + StatName(numMain) + "）：" + textStats
+			});
+			// [6] 主系；[7..96] 天赋网格 = 18 rune x 5 系，idx = 7 + 5*rune + school
+			int primary = ((points.Length > 6) ? points[6] : 0);
+			List<int[]> talents = new List<int[]>();
+			for (int rune = 0; rune < 18; rune++)
+			{
+				for (int school = 0; school < 5; school++)
 				{
-					label = TalentSchoolShort(num2);
-					text = string.Format("天赋系：{0}（天赋表五栏 = 斗争 / 灾难 / 魔法 / 荣誉 / 祝福）", TalentSchoolName(num2));
+					int idx = TouhouRune.IdxOf(school, rune);
+					if (idx >= 0 && idx < points.Length && points[idx] > 0 && TouhouRune.Valid(school, rune))
+					{
+						talents.Add(new int[2] { school, rune });
+					}
 				}
-				else
+			}
+			// 主系的 6 个排前面、次系的 1 个排后面，和站点一致的顺序
+			talents.Sort(delegate(int[] a, int[] b)
+			{
+				int numA = ((a[0] == primary) ? 0 : 1);
+				int numB = ((b[0] == primary) ? 0 : 1);
+				if (numA != numB)
 				{
-					label = ((num2 > 0) ? num2.ToString() : "");
-					text = string.Format("技能位 {0}：{1}（取值 0/1）", j - 6, (num2 > 0) ? "有" : "空");
+					return numA.CompareTo(numB);
 				}
+				if (a[0] != b[0])
+				{
+					return a[0].CompareTo(b[0]);
+				}
+				return a[1].CompareTo(b[1]);
+			});
+			foreach (int[] t in talents)
+			{
+				int school = t[0];
+				int rune = t[1];
 				bankCfgRow.Cells.Add(new BankCfgCell
 				{
-					Icon = bitmapSource,
-					Num = label,
-					Alpha = ((num2 > 0 || j == 6) ? 1.0 : 0.25),
-					Tip = text
+					Icon = ImgCache.Ensure(TouhouApi.RuneImg(school, rune)),
+					Num = TouhouRune.SchoolName(school).Substring(0, 1),
+					Alpha = ((school == primary) ? 1.0 : 0.5),
+					Tip = TouhouRune.Tip(school, rune, ((school == primary) ? "主系 · " : "次系 · "))
 				});
 			}
+			string subPrimary = ((primary >= 0 && primary < 5) ? TouhouRune.SchoolName(primary) : "?");
+			string subSecondary = "";
+			foreach (int[] t2 in talents)
+			{
+				if (t2[0] != primary)
+				{
+					subSecondary = TouhouRune.SchoolName(t2[0]);
+					break;
+				}
+			}
+			bankCfgRow.Sub = "主系 " + subPrimary + ((subSecondary.Length > 0) ? (" · 次系 " + subSecondary) : "") + " · " + ConfigTimeText(item2.LastConfigAt) + " · " + item2.PointSum + " 点";
 			list.Add(bankCfgRow);
 		}
 		if (list.Count == 0)
@@ -1471,7 +1712,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			});
 		}
 		ListBankConfigs.ItemsSource = list;
-		BankCfgSub.Text = string.Format("共 {0} 个英雄存过加点方案（含没打过场的）。每行 15 格 = 前 6 格「初始属性」（生命 / 魔法值 / 物伤 / 法伤 / 物抗 / 法抗，格里的数字是碎片个数，上限 8）+ 第 7 格「天赋系」（斗 / 灾 / 魔 / 荣 / 祝，对应游戏天赋表的五栏）+ 后 8 格「技能位」（这个英雄哪几个技能栏有技能）。灰的是没用到的位。整串 105 项 = 7 段 x 15 位，存档里只写「最后一次的配置」那一段。", list2.Count);
+		BankCfgSub.Text = string.Format("共 {0} 个英雄存过加点方案。左边一格是初始属性（数字是碎片总数），后面 6 个是主系天赋、最后 1 个是次系，顺序和游戏里点的一致。", list2.Count);
 	}
 
 	private void RememberBankStamp()

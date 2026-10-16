@@ -46,5 +46,7 @@
   <ItemGroup>
     <!-- 图片资源随包输出：克隆仓库后直接 dotnet build 就能跑，不用另外下资源 -->
     <Content Include="..\art\**\*" Link="art\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 技能文案表（从 GameStrings 提取） -->
+    <Content Include="Sc2Toolbox\ability_text.tsv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

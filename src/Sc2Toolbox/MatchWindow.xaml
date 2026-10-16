@@ -3,9 +3,22 @@
   <FrameworkElement.Resources>
     <ResourceDictionary>
       <DataTemplate x:Key="IIcon">
-        <Border Width="26" Height="26" Margin="0,0,3,3" CornerRadius="5" ClipToBounds="True" Background="{StaticResource B.Card2}" ToolTip="{Binding Tip}">
-          <Image Stretch="UniformToFill" Source="{Binding Src}" />
+        <Border Width="32" Height="32" Margin="0,0,3,3" CornerRadius="5" ClipToBounds="True" Background="{StaticResource B.Card2}" ToolTip="{Binding Tip}">
+          <Grid>
+            <Image Stretch="UniformToFill" Source="{Binding Src}" />
+            <Border x:Name="NumBadge" HorizontalAlignment="Right" VerticalAlignment="Bottom" CornerRadius="4,0,0,0" Background="#CC000000" Padding="3,0,3,1">
+              <TextBlock Text="{Binding Num}" FontSize="11" FontWeight="Bold" Foreground="White" />
+            </Border>
+          </Grid>
         </Border>
+        <DataTemplate.Triggers>
+          <DataTrigger Binding="{Binding Num}" Value="">
+            <Setter TargetName="NumBadge" Property="Visibility" Value="Collapsed" />
+          </DataTrigger>
+          <DataTrigger Binding="{Binding Num}" Value="{x:Null}">
+            <Setter TargetName="NumBadge" Property="Visibility" Value="Collapsed" />
+          </DataTrigger>
+        </DataTemplate.Triggers>
       </DataTemplate>
       <DataTemplate x:Key="ISmall">
         <Border Width="20" Height="20" Margin="0,0,2,2" CornerRadius="4" ClipToBounds="True" Background="{StaticResource B.Card2}" ToolTip="{Binding Tip}">

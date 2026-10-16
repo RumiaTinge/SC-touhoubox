@@ -34,7 +34,7 @@ public class KeepAlive
 		if (!(why == _lastSkipLog))
 		{
 			_lastSkipLog = why;
-			L.W("保活跳过：" + why);
+			L.W("等房跳过：" + why);
 		}
 	}
 
@@ -61,7 +61,7 @@ public class KeepAlive
 				Name = "keepalive"
 			};
 			_th.Start();
-			L.W("保活已启动：方式=" + Ctx.S.KeepMode + " 间隔=" + Ctx.S.IntervalSec + "s 抢焦点兜底=" + Ctx.S.FocusEverySec + "s 闲置保护=" + (Ctx.S.IdleGuard ? (Ctx.S.IdleGuardSec + "s") : "关"));
+			L.W("等房已启动：方式=" + Ctx.S.KeepMode + " 间隔=" + Ctx.S.IntervalSec + "s 抢焦点兜底=" + Ctx.S.FocusEverySec + "s");
 		}
 	}
 
@@ -78,7 +78,7 @@ public class KeepAlive
 			{
 			}
 			Status = "已停止";
-			L.W("保活已停止");
+			L.W("挂机等房已停止");
 			Raise();
 		}
 	}
@@ -106,7 +106,7 @@ public class KeepAlive
 			catch (Exception ex)
 			{
 				Status = "异常：" + ex.Message;
-				L.W("保活异常: " + ex);
+				L.W("等房异常: " + ex);
 			}
 			Raise();
 			int millisecondsTimeout = Math.Max(2, Ctx.S.IntervalSec) * 1000;
@@ -178,13 +178,6 @@ public class KeepAlive
 				return;
 			}
 		}
-		if (s.IdleGuard && Sc2.IdleMs() < (uint)(s.IdleGuardSec * 1000))
-		{
-			Skips++;
-			Status = "你最近 " + Sc2.IdleMs() / 1000 + " 秒内还在操作电脑，按设置跳过（当前设置：闲置保护开）";
-			SkipLog("闲置保护：你最近还在操作电脑，按设置跳过");
-			return;
-		}
 		bool flag = s.KeepMode == "Hidden" || s.KeepMode == "Both";
 		bool flag2 = s.KeepMode == "Focus" || s.KeepMode == "Both";
 		bool flag3 = flag2 && DateTime.Now >= nextFocus;
@@ -217,7 +210,9 @@ public class KeepAlive
 		bool verified = false;
 		if (flag)
 		{
-			if (!flag2 && Sc2.Fg(num))
+			// 游戏只要在前台就走真实输入（能被系统确认），不管选的是哪种模式。
+			// 这样「两者都用」在前台也能确认成功，就不会再白抢一次焦点 —— 游戏里也就不会闪屏了。
+			if (Sc2.Fg(num))
 			{
 				flag5 = true;
 				flag6 = Sc2.Inject(num, s.KeepKeyboard, out how, out verified);
@@ -227,12 +222,16 @@ public class KeepAlive
 				flag4 = Sc2.PostJiggle(num);
 			}
 		}
-		if (flag3)
+		if (flag3 && !verified)
 		{
+			// 只有「游戏在前台但这轮投递没能被系统确认」才需要抢焦点兜底。
+			// 前台真实输入已经生效时（verified）绝不抢焦点 —— 抢焦点会把游戏切出去再切回来，屏幕上就是一闪。
 			flag6 = Sc2.FocusPulse(num, s.KeepKeyboard, out how, out verified);
 		}
-		if (flag6 && !flag5)
+		if (flag6)
 		{
+			// 抢焦点兜底成功、或游戏本来就在前台且输入已生效 —— 两种都说明
+			// 这段时间没必要再抢焦点，把兜底时间往后推，避免在游戏里反复闪屏。
 			nextFocus = DateTime.Now.AddSeconds(flag ? Math.Max(10, s.FocusEverySec) : Math.Max(5, s.IntervalSec));
 		}
 		if (flag6)
@@ -252,21 +251,21 @@ public class KeepAlive
 			keepAlive.LastKind = lastKind;
 			string text2 = ((how.Length > 0) ? (" / " + how) : "");
 			text2 += (verified ? " · 系统已确认收到" : " · 未自检（你刚才也在动键鼠）");
-			Status = "已保活（" + LastKind + text2 + "）";
+			Status = "已等房（" + LastKind + text2 + "）";
 			Note = "";
 			_lastSkipLog = "";
 			L.W("脉冲 #" + Pulses + "（" + LastKind + text2 + "）" + ((Sc2.LastDiag.Length > 0) ? ("  [" + Sc2.LastDiag + "]") : ""));
 		}
 		else if (flag5)
 		{
-			Status = "保活失败：游戏在前台，注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
-			Note = (Admin.IsElevated ? "已经用管理员权限运行，但注入仍未生效。可以试试把保活方式改成「抢焦点」。" : "当前不是管理员身份运行！星际争霸 II 是高完整性进程，普通权限注入的鼠标/键盘会被 Windows 静默挡下。请关掉本工具，右键「以管理员身份运行」。");
+			Status = "等房失败：游戏在前台，注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
+			Note = (Admin.IsElevated ? "已经用管理员权限运行，但注入仍未生效。可以试试把等房方式改成「抢焦点」。" : "当前不是管理员身份运行！星际争霸 II 是高完整性进程，普通权限注入的鼠标/键盘会被 Windows 静默挡下。请关掉本工具，右键「以管理员身份运行」。");
 			L.W("脉冲失败（静默·前台注入未生效）：" + Sc2.LastDiag);
 		}
 		else if (flag3)
 		{
-			Status = "保活失败：注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
-			Note = (Admin.IsElevated ? "已经用管理员权限运行，但注入仍未生效。可以试试把保活方式改成「抢焦点」，或确认游戏窗口没有被别的东西挡住。" : "当前不是管理员身份运行！星际争霸 II 是高完整性进程，普通权限注入的鼠标/键盘会被 Windows 静默挡下（已实测：游戏在前台时注入无效，5 分钟必被踢）。请关掉本工具，右键「以管理员身份运行」。");
+			Status = "等房失败：注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
+			Note = (Admin.IsElevated ? "已经用管理员权限运行，但注入仍未生效。可以试试把等房方式改成「抢焦点」，或确认游戏窗口没有被别的东西挡住。" : "当前不是管理员身份运行！星际争霸 II 是高完整性进程，普通权限注入的鼠标/键盘会被 Windows 静默挡下（已实测：游戏在前台时注入无效，5 分钟必被踢）。请关掉本工具，右键「以管理员身份运行」。");
 			L.W("脉冲失败：注入未生效 " + Sc2.LastDiag);
 		}
 		else if (flag4)
@@ -275,14 +274,14 @@ public class KeepAlive
 			LastPulse = DateTime.Now;
 			LastKind = "静默·投递消息";
 			Status = "已投递静默消息（无法确认游戏是否记账）";
-			Note = "「静默」= 绝不抢你的焦点：只往游戏窗口投递鼠标消息。游戏本来就在前台时它会自动改用真实输入（能自检），但游戏在后台/最小化时，这种消息投递是没法确认游戏记不记账的（系统空闲计时器不会变化，也就无法自检）。要保证一定生效，请把保活方式改成「抢焦点」或「两者都用」。";
+			Note = "「静默」= 绝不抢你的焦点：只往游戏窗口投递鼠标消息。游戏本来就在前台时它会自动改用真实输入（能自检），但游戏在后台/最小化时，这种消息投递是没法确认游戏记不记账的（系统空闲计时器不会变化，也就无法自检）。要保证一定生效，请把等房方式改成「抢焦点」或「两者都用」。";
 			_lastSkipLog = "";
 			L.W("脉冲 #" + Pulses + "（静默 · 无法自检）" + ((Sc2.LastDiag.Length > 0) ? ("  [" + Sc2.LastDiag + "]") : ""));
 		}
 		else if (flag)
 		{
 			Status = "静默投递被系统拒绝";
-			Note = "静默模式靠 PostMessage，如果游戏是管理员进程会被系统挡下（返回值 False）。解决办法：右键本工具「以管理员身份运行」，或把保活方式改成「抢焦点」。";
+			Note = "静默模式靠 PostMessage，如果游戏是管理员进程会被系统挡下（返回值 False）。解决办法：右键本工具「以管理员身份运行」，或把等房方式改成「抢焦点」。";
 		}
 	}
 }

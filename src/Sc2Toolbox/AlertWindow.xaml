@@ -48,9 +48,5 @@
     </StackPanel>
 
     <TextBlock Name="TxtBody" Grid.Row="2" Text="" Foreground="#FFFFCFCF" FontSize="24" HorizontalAlignment="Center" Margin="40,20,40,0" TextAlignment="Center" TextWrapping="Wrap" />
-
-    <Border Grid.Row="3" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Top" CornerRadius="99" Background="#14FFFFFF" BorderBrush="#2EFF9A9A" BorderThickness="1" Padding="18,9" Margin="40,38,40,0">
-      <TextBlock Name="TxtHint" Text="（点一下这里 或 按 Ctrl+Alt+Shift+A 关闭）" Foreground="#B3FFDCDC" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
-    </Border>
   </Grid>
 </Window>

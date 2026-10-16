@@ -18,6 +18,8 @@ public sealed class BankCfgCell
 /// <summary>「英雄加点 · 本地存档」卡片里的一行。</summary>
 public sealed class BankCfgRow
 {
+	public ImageSource Img { get; set; }
+
 	public string Title { get; set; } = "";
 
 	public string Sub { get; set; } = "";

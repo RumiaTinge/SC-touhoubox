@@ -3,6 +3,21 @@
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
   </WindowChrome.WindowChrome>
+  <Window.Resources>
+    <!-- 卡片标题：点一下折叠 / 展开这张卡片。放在窗口资源里才能挂事件处理函数。 -->
+    <Style x:Key="CardHead" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource H2}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Padding" Value="0,2" />
+      <Setter Property="ToolTip" Value="点一下折叠 / 展开这张卡片" />
+      <EventSetter Event="MouseLeftButtonDown" Handler="CardHead_Click" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Foreground" Value="{StaticResource B.Accent}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </Window.Resources>
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="42" />
@@ -75,7 +90,7 @@
             <RadioButton Name="Nav2" Style="{StaticResource Nav}" GroupName="nav" Checked="Nav_Checked">
               <StackPanel Orientation="Horizontal">
                 <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="1.4" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type RadioButton}}}" Data="M8,1.3 L14,3.8 V8 C14,11.5 11.4,14.1 8,15 C4.6,14.1 2,11.5 2,8 V3.8 Z M5.6,7.8 L7.4,9.7 L10.6,5.9" />
-                <TextBlock Text="防踢保活" Margin="11,0,0,0" VerticalAlignment="Center" />
+                <TextBlock Text="挂机等房" Margin="11,0,0,0" VerticalAlignment="Center" />
               </StackPanel>
             </RadioButton>
             <RadioButton Name="Nav3" Style="{StaticResource Nav}" GroupName="nav" Checked="Nav_Checked">
@@ -101,7 +116,7 @@
             <StackPanel>
               <StackPanel Orientation="Horizontal">
                 <Ellipse Name="SideDot" Width="7" Height="7" Fill="{StaticResource B.Dim}" VerticalAlignment="Center" />
-                <TextBlock Name="SideKeep" Text="保活未启动" Style="{StaticResource Caption}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock Name="SideKeep" Text="挂机等房未启动" Style="{StaticResource Caption}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
               </StackPanel>
               <TextBlock Name="SideRoom" Text="房间接口：连接中…" Style="{StaticResource Caption}" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
             </StackPanel>
@@ -116,6 +131,7 @@
           <TextBlock Text="置顶小窗实时显示房间里 10 个位置的玩家；位置、透明度和显示内容都能自己调。" Style="{StaticResource PageSub}" />
           <Border Style="{StaticResource Card}">
             <StackPanel>
+              <TextBlock Text="悬浮窗显示" Style="{StaticResource CardHead}" />
               <Grid Margin="0,4">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -165,36 +181,39 @@
           </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="操作" Style="{StaticResource H2}" />
+              <TextBlock Text="操作" Style="{StaticResource CardHead}" />
               <StackPanel Orientation="Horizontal">
                 <Button Name="BtnShowOverlay" Content="显示悬浮窗" Style="{StaticResource BtnPrimary}" Click="BtnShowOverlay_Click" />
                 <Button Content="重置悬浮窗位置" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnResetPos_Click" />
                 <Button Content="打开设置文件所在目录" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnOpenDir_Click" />
               </StackPanel>
               <TextBlock Text="拖动悬浮窗的标题栏可以移动，位置会自动记住。" Style="{StaticResource Muted}" Margin="0,10,0,0" />
-              <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                <Button Name="BtnFixFs" Content="让悬浮窗显示在游戏里" Style="{StaticResource Btn}" Click="BtnFixFs_Click" />
-              </StackPanel>
-              <TextBlock Name="TxtFsState" TextWrapping="Wrap" Margin="0,10,0,0" Style="{StaticResource Muted}" Text="为什么游戏里看不到悬浮窗：星际争霸 II 的游戏窗口自己带「置顶」属性，而且 Windows 的「全屏优化」会把游戏画面直接交给显卡，任何悬浮窗都会被压在下面。点上面的按钮会为星际争霸 II 关闭全屏优化（可逆），完全退出游戏再重新进入即可看到悬浮窗。" />
             </StackPanel>
           </Border>
         </StackPanel>
       </ScrollViewer>
       <ScrollViewer Name="P2" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
         <StackPanel Margin="26,24,26,32">
-          <TextBlock Text="防踢保活" Style="{StaticResource PageTitle}" />
+          <TextBlock Text="挂机等房" Style="{StaticResource PageTitle}" />
           <TextBlock Text="挂机时定期往游戏窗口送一次键鼠输入，躲开「长时间无操作被移出房间」。" Style="{StaticResource PageSub}" />
+          <Border Style="{StaticResource Card}" Background="{StaticResource B.WarnSoft}" BorderBrush="{StaticResource B.Warn}" BorderThickness="1" Margin="0,12,0,0">
+            <StackPanel>
+              <TextBlock Text="⚠ 请确认自己真的有充足的时间再考虑开启此功能！" Foreground="{StaticResource B.Warn}" FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
+              <TextBlock Text="开启后会持续往游戏窗口发送键鼠输入。挂机等房本身违反暴雪 EULA 的精神，也可能让你在不知情的情况下被留在房间里占位 —— 请自行判断风险，并确保你确实有时间打完这一局。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
+              <TextBlock Text="等房设置" Style="{StaticResource CardHead}" />
               <Grid Margin="0,4">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="启用保活" Style="{StaticResource Body}" />
+                <TextBlock Grid.Column="0" Text="启用挂机等房" Style="{StaticResource Body}" />
                 <ToggleButton Name="SwKeep" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
-              <TextBlock Text="保活方式" Style="{StaticResource Body}" Margin="0,12,0,6" />
+              <TextBlock Text="等房方式" Style="{StaticResource Body}" Margin="0,12,0,6" />
               <StackPanel Orientation="Horizontal">
                 <RadioButton Name="RbHidden" Style="{StaticResource Seg}" GroupName="keep" Content="静默（仅在游戏内生效）" Checked="Any_Changed" />
                 <RadioButton Name="RbFocus" Style="{StaticResource Seg}" GroupName="keep" Content="切换程序（会闪烁黑屏）" Margin="8,0,0,0" Checked="Any_Changed" />
@@ -206,7 +225,7 @@
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="110" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="脉冲间隔（秒）— 每这么久保活一次，必须小于游戏的 5 分钟判定" Style="{StaticResource Body}" />
+                <TextBlock Grid.Column="0" Text="脉冲间隔（秒）— 每这么久等房一次，必须小于游戏的 5 分钟判定" Style="{StaticResource Body}" />
                 <TextBox Name="TbInterval" Grid.Column="1" Style="{StaticResource Tb}" LostFocus="Num_LostFocus" KeyDown="Num_KeyDown" />
               </Grid>
               <Grid Margin="0,10,0,0">
@@ -224,7 +243,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                   <TextBlock Text="我正在打字时先别抢焦点（最多推迟 8 秒）" Style="{StaticResource Body}" />
-                  <TextBlock Text="防止你的按键被游戏吞掉；推到最后仍会保活，不会因此被踢。" Style="{StaticResource Muted}" />
+                  <TextBlock Text="防止你的按键被游戏吞掉；推到最后仍会继续，不会因此被踢。" Style="{StaticResource Muted}" />
                 </StackPanel>
                 <ToggleButton Name="SwNoInterrupt" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
@@ -234,35 +253,22 @@
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
-                  <TextBlock Text="侦测到对局开始就自动停保活" Style="{StaticResource Body}" />
+                  <TextBlock Text="侦测到对局开始就自动停止" Style="{StaticResource Body}" />
                   <TextBlock Text="房间列表里没有你了（已经开局 / 回主菜单 / 房间散了）就暂停脉冲 —— 对局里没有挂机踢出，不必打扰你。默认开。" Style="{StaticResource Muted}" />
                 </StackPanel>
                 <ToggleButton Name="SwPauseInMatch" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
-              </Grid>
-              <Grid Margin="0,10,0,0">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="110" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                  <TextBlock Text="只在我离开电脑时才保活" Style="{StaticResource Body}" />
-                  <TextBlock Text="⚠ 这是老版本的默认行为，开了以后你在用电脑时反而没人保活（容易被踢）。默认关闭。" Style="{StaticResource Muted}" />
-                </StackPanel>
-                <TextBox Name="TbIdleSec" Grid.Column="1" Style="{StaticResource Tb}" Margin="0,0,10,0" LostFocus="Num_LostFocus" KeyDown="Num_KeyDown" />
-                <ToggleButton Name="SwIdleGuard" Grid.Column="2" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="状态" Style="{StaticResource H2}" />
-              <TextBlock Name="TxtKeepStatus" Text="保活：未启动" Style="{StaticResource Body}" TextWrapping="Wrap" />
+              <TextBlock Text="状态" Style="{StaticResource CardHead}" />
+              <TextBlock Name="TxtKeepStatus" Text="挂机等房：未启动" Style="{StaticResource Body}" TextWrapping="Wrap" />
               <TextBlock Name="TxtKeepNote" Text="" Style="{StaticResource Muted}" Foreground="{StaticResource B.Warn}" Margin="0,6,0,0" />
               <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                 <Button Content="立即脉冲一次" Style="{StaticResource BtnPrimary}" Click="BtnPulseNow_Click" />
-                <Button Content="启动保活" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnKeepStart_Click" />
-                <Button Content="停止保活" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnKeepStop_Click" />
+                <Button Content="启动" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnKeepStart_Click" />
+                <Button Content="停止" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnKeepStop_Click" />
                 <Button Content="试响警报" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnTestAlert_Click" />
               </StackPanel>
             </StackPanel>
@@ -272,7 +278,6 @@
       <ScrollViewer Name="P3" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
         <StackPanel Margin="26,24,26,32">
           <TextBlock Text="开局警报" Style="{StaticResource PageTitle}" />
-          <TextBlock Text="房间满人或确认开局时，用声音 / 横幅 / 角落小提示把你叫回来。" Style="{StaticResource PageSub}" />
           <Border Style="{StaticResource Card}">
             <StackPanel>
               <Grid Margin="0,4">
@@ -291,7 +296,6 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                   <TextBlock Text="① 房间满人时警报" Style="{StaticResource Body}" />
-                  <TextBlock Text="房间人数达到下面这个数就提醒你（对局要开了）。" Style="{StaticResource Muted}" />
                 </StackPanel>
                 <TextBox Name="TbSlots" Grid.Column="1" Style="{StaticResource Tb}" Margin="0,0,10,0" LostFocus="Num_LostFocus" KeyDown="Num_KeyDown" />
                 <ToggleButton Name="SwOnFull" Grid.Column="2" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
@@ -303,7 +307,6 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                   <TextBlock Text="② 确认开局时警报" Style="{StaticResource Body}" />
-                  <TextBlock Text="房间接口正常、而你已经不在房间列表里（连续 2 次确认）→ 你已经在读图了。" Style="{StaticResource Muted}" />
                 </StackPanel>
                 <ToggleButton Name="SwOnStart" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
@@ -311,7 +314,7 @@
           </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="声音（满人和开局用两种不同的声音）" Style="{StaticResource H2}" />
+              <TextBlock Text="声音（满人和开局用两种不同的声音）" Style="{StaticResource CardHead}" />
               <Grid Margin="0,4">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -338,7 +341,7 @@
           </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="警报画面（默认只出声音 + 角落小提示）" Style="{StaticResource H2}" />
+              <TextBlock Text="警报画面（默认只出声音 + 角落小提示）" Style="{StaticResource CardHead}" />
               <Grid Margin="0,4">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -381,13 +384,13 @@
               </Grid>
               <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                 <Button Content="试响一次（看看图和声音）" Style="{StaticResource BtnPrimary}" Click="BtnTestAlert_Click" />
-                <TextBlock Text="图片和文字都关着时，只会响声音 + 角落弹个「房间满了 / 开局了」的小提示。" Style="{StaticResource Muted}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                
               </StackPanel>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="进人提示" Style="{StaticResource H2}" />
+              <TextBlock Text="进人提示" Style="{StaticResource CardHead}" />
               <Grid Margin="0,4">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -395,7 +398,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                   <TextBlock Text="房间里进人时，角落轻提示一下" Style="{StaticResource Body}" />
-                  <TextBlock Text="不管警报开不开都生效（它归「启用警报」总开关管，只在警报关掉时一起静默）。" Style="{StaticResource Muted}" />
+                  
                 </StackPanel>
                 <ToggleButton Name="SwJoin" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
@@ -406,7 +409,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                   <TextBlock Text="提示文字（可以自己改）" Style="{StaticResource Body}" />
-                  <TextBlock Text="{}{name} = 玩家名，{n} = 现在几人，{max} = 满员几人" Style="{StaticResource Muted}" />
+                  
                 </StackPanel>
                 <TextBox Name="TbJoinText" Grid.Column="1" Style="{StaticResource Tb}" TextChanged="TbJoin_TextChanged" />
               </Grid>
@@ -434,7 +437,11 @@
         <StackPanel Margin="26,24,26,32">
           <TextBlock Text="对战数据" Style="{StaticResource PageTitle}" />
           <TextBlock Text="从东方月灵传站点读取战绩、常用英雄和天梯排位。" Style="{StaticResource PageSub}" />
-          <Border Style="{StaticResource Card}">
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+            <RadioButton Name="RbOnline" Style="{StaticResource Seg}" GroupName="p5mode" Content="在线对局" IsChecked="True" Checked="P5Mode_Changed" />
+            <RadioButton Name="RbLocal" Style="{StaticResource Seg}" GroupName="p5mode" Content="本地对局" Margin="8,0,0,0" Checked="P5Mode_Changed" />
+          </StackPanel>
+          <Border Name="P5Me" Style="{StaticResource Card}">
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -457,7 +464,7 @@
               </StackPanel>
             </Grid>
           </Border>
-          <Border Style="{StaticResource Card}">
+          <Border Name="P5Bank" Style="{StaticResource Card}">
             <StackPanel>
               <Grid>
                 <Grid.ColumnDefinitions>
@@ -465,7 +472,7 @@
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                  <TextBlock Text="本地存档战绩" Style="{StaticResource H2}" />
+                  <TextBlock Text="本地存档战绩" Style="{StaticResource CardHead}" />
                   <TextBlock Text="直接读本机星际争霸 II 里的 touhou.SC2Bank（游戏自己写的存档）。完全离线，不联网、也不依赖 touhou_client。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="10,0,0,0">
@@ -478,9 +485,9 @@
               <TextBlock Name="BankWhere" Text="" Style="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" />
             </StackPanel>
           </Border>
-          <Border Style="{StaticResource Card}">
+          <Border Name="P5Matches" Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="最近对局" Style="{StaticResource H2}" />
+              <TextBlock Text="最近对局" Style="{StaticResource CardHead}" />
               <TextBlock Name="MatchesSub" Text="" Style="{StaticResource Muted}" TextWrapping="Wrap" />
               <ItemsControl Name="ListMatches">
                 <ItemsControl.ItemTemplate>
@@ -509,9 +516,9 @@
               </ItemsControl>
             </StackPanel>
           </Border>
-          <Border Style="{StaticResource Card}">
+          <Border Name="P5Heroes" Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="我的英雄" Style="{StaticResource H2}" />
+              <TextBlock Text="我的英雄" Style="{StaticResource CardHead}" />
               <TextBlock Name="HeroesSub" Text="" Style="{StaticResource Muted}" TextWrapping="Wrap" />
               <ItemsControl Name="ListHeroes">
                 <ItemsControl.ItemsPanel>
@@ -542,9 +549,9 @@
               </ItemsControl>
             </StackPanel>
           </Border>
-          <Border Style="{StaticResource Card}">
+          <Border Name="P5BankHeroes" Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="英雄战绩 · 本地存档" Style="{StaticResource H2}" />
+              <TextBlock Text="英雄战绩 · 本地存档" Style="{StaticResource CardHead}" />
               <TextBlock Name="BankHeroSub" Text="数据来自 touhou.SC2Bank 的 dbHeroNN 段，按场次排序。" Style="{StaticResource Muted}" TextWrapping="Wrap" />
               <ItemsControl Name="ListBankHeroes" Margin="0,10,0,0">
                 <ItemsControl.ItemsPanel>
@@ -575,10 +582,10 @@
               </ItemsControl>
             </StackPanel>
           </Border>
-          <Border Style="{StaticResource Card}">
+          <Border Name="P5BankConfigs" Style="{StaticResource Card}">
             <StackPanel>
               <Grid>
-                <TextBlock Text="英雄加点 · 本地存档" Style="{StaticResource H2}" />
+                <TextBlock Text="英雄加点 · 本地存档" Style="{StaticResource CardHead}" />
                 <Button Name="BtnPresetEdit" Content="编辑加点方案…" HorizontalAlignment="Right" Padding="10,2" Click="BtnPresetEdit_Click" />
               </Grid>
               <TextBlock Name="BankCfgSub" Text="数据来自 touhou.SC2Bank 的 dbHeroNN_config 段，是游戏自己写的加点方案（明文，每项一个数字）。" Style="{StaticResource Muted}" TextWrapping="Wrap" />
@@ -588,13 +595,17 @@
                     <Border Padding="6,5" Margin="0,0,0,4" CornerRadius="8" Background="{StaticResource B.Card2}">
                       <Grid>
                         <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="200" />
-                          <ColumnDefinition Width="170" />
+                          <ColumnDefinition Width="36" />
+                          <ColumnDefinition Width="150" />
+                          <ColumnDefinition Width="230" />
                           <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource Body}" TextTrimming="CharacterEllipsis" Text="{Binding Title}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding Sub}" />
-                        <ItemsControl Grid.Column="2" ItemsSource="{Binding Cells}">
+                        <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" VerticalAlignment="Center" Background="{StaticResource B.Card}" ClipToBounds="True">
+                          <Image Source="{Binding Img}" Stretch="UniformToFill" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Style="{StaticResource Body}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Title}" />
+                        <TextBlock Grid.Column="2" Style="{StaticResource Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Sub}" />
+                        <ItemsControl Grid.Column="3" VerticalAlignment="Center" ItemsSource="{Binding Cells}">
                           <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                               <StackPanel Orientation="Horizontal" />
@@ -618,9 +629,9 @@
               </ItemsControl>
             </StackPanel>
           </Border>
-          <Border Style="{StaticResource Card}">
+          <Border Name="P5Rank" Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="天梯排位" Style="{StaticResource H2}" />
+              <TextBlock Text="天梯排位" Style="{StaticResource CardHead}" />
               <ItemsControl Name="ListRank">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
@@ -657,6 +668,7 @@
           <TextBlock Text="运行日志、托盘行为与版本说明。" Style="{StaticResource PageSub}" />
           <Border Style="{StaticResource Card}">
             <StackPanel>
+              <TextBlock Text="运行日志" Style="{StaticResource CardHead}" />
               <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                 <Button Content="刷新日志" Style="{StaticResource Btn}" Click="BtnRefreshLog_Click" />
                 <Button Content="打开日志文件所在目录" Style="{StaticResource Btn}" Margin="10,0,0,0" Click="BtnOpenDir_Click" />
@@ -667,7 +679,7 @@
           </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="窗口与托盘" Style="{StaticResource H2}" />
+              <TextBlock Text="窗口与托盘" Style="{StaticResource CardHead}" />
               <Grid Margin="0,4">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -675,7 +687,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                   <TextBlock Text="关闭窗口时隐藏到托盘（不退出程序）" Style="{StaticResource Body}" />
-                  <TextBlock Text="开启：点右上角的 ✕ 只是把面板收起来，保活和警报继续跑，右下角托盘图标里可以再打开或退出。关闭：点 ✕ 直接退出程序（保活也会停）。" Style="{StaticResource Muted}" />
+                  <TextBlock Text="开启：点右上角的 ✕ 只是把面板收起来，挂机等房和警报继续跑，右下角托盘图标里可以再打开或退出。关闭：点 ✕ 直接退出程序（挂机等房也会停）。" Style="{StaticResource Muted}" />
                 </StackPanel>
                 <ToggleButton Name="SwCloseToTray" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
@@ -686,7 +698,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                   <TextBlock Text="关闭时角落里提示一句「程序还在托盘里跑」" Style="{StaticResource Body}" />
-                  <TextBlock Text="免得你以为程序已经关了、其实保活还在跑（或者反过来）。" Style="{StaticResource Muted}" />
+                  <TextBlock Text="免得你以为程序已经关了、其实挂机等房还在跑（或者反过来）。" Style="{StaticResource Muted}" />
                 </StackPanel>
                 <ToggleButton Name="SwTrayHint" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
@@ -705,7 +717,7 @@
           </Border>
           <Border Style="{StaticResource Card}">
             <StackPanel>
-              <TextBlock Text="关于" Style="{StaticResource H2}" />
+              <TextBlock Text="关于" Style="{StaticResource CardHead}" />
               <TextBlock Style="{StaticResource Body}" TextWrapping="Wrap" Text="SC-touhoubox v1.1 · 面向《星际争霸II》国服（网易/战网）公开房间的挂机保护 + 开局提醒 + 东方月灵传数据面板。" />
               <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" Text="· 挂机判定：暴雪服务端在房间内要求「有键鼠输入送进游戏窗口」，约 5 分钟没有任何输入就断开连接。窗口可见但没焦点不算，最小化也不算。无预警、无开关、房主也关不掉。" />
               <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" Text="· 房间列表：读本机 touhou_client.exe 在 127.0.0.1:8030 提供的 /lobbyPlayerList（POST，返回冒号分隔的 10 个槽位）。只读，不发任何指令。" />

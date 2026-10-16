@@ -120,10 +120,45 @@ public partial class OverlayWindow : Window, IComponentConnector
 
 	private DispatcherTimer _chat;
 
+	/// <summary>右键菜单是否开着。开着的时候不再把悬浮窗顶到最上层，也不重建列表，免得菜单被压到下面。</summary>
+	private bool _menuOpen;
+
+	private void Menu_Opened(object sender, RoutedEventArgs e)
+	{
+		_menuOpen = true;
+		try
+		{
+			// 菜单弹出的是一个独立窗口，把它也设成 topmost，就不会被悬浮窗盖住
+			ContextMenu contextMenu = sender as ContextMenu;
+			if (contextMenu != null)
+			{
+				HwndSource hwndSource = PresentationSource.FromVisual(contextMenu) as HwndSource;
+				if (hwndSource != null && hwndSource.Handle != IntPtr.Zero)
+				{
+					SetWindowPos(hwndSource.Handle, HWND_TOPMOST, 0, 0, 0, 0, 19u);
+				}
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private void Menu_Closed(object sender, RoutedEventArgs e)
+	{
+		_menuOpen = false;
+		KeepTopmost();
+	}
+
 	public void KeepTopmost()
 	{
 		try
 		{
+			// 右键菜单开着的时候别把悬浮窗重新顶到最上面，否则状态每次刷新都会把菜单压到下面去
+			if (_menuOpen)
+			{
+				return;
+			}
 			if (!IsVisible)
 			{
 				return;
@@ -360,12 +395,12 @@ public partial class OverlayWindow : Window, IComponentConnector
 		string text;
 		if (!keep.Running)
 		{
-			text = "保活：关";
+			text = "等房：关";
 		}
 		else
 		{
 			string text2 = ((keep.LastKind.Length > 0) ? keep.LastKind : "等待中");
-			text = "保活：开 · " + text2;
+			text = "等房：开 · " + text2;
 			if (keep.LastPulse != DateTime.MinValue)
 			{
 				double totalSeconds = (DateTime.Now - keep.LastPulse).TotalSeconds;
@@ -577,6 +612,9 @@ public partial class OverlayWindow : Window, IComponentConnector
 					}
 					Dispatcher.BeginInvoke(new Action(delegate
 					{
+						// 特征串只看聊天内容，不看表情图在不在；下载完必须手动清掉，
+						// 否则 RefreshChat 会在开头就 return，表情永远停在「[表情NNN]」。
+						_chatSig = "";
 						RefreshChat();
 					}));
 				});

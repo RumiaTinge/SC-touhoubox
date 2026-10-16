@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Markup;
@@ -16,6 +17,9 @@ public partial class MatchWindow : Window, IComponentConnector
 		public ImageSource Src { get; set; }
 
 		public string Tip { get; set; }
+
+		/// <summary>右下角角标：买了几级 / 用了几次。空字符串表示不显示角标。</summary>
+		public string Num { get; set; }
 	}
 
 	public class MRow
@@ -259,19 +263,46 @@ public partial class MatchWindow : Window, IComponentConnector
 			}
 		}
 		int[] array3 = TouhouApi.Nums(p.PrimaryRunes);
-		for (int k = 0; k < array3.Length; k++)
+		// 同一个符文买多级会在数组里重复出现；按首次出现顺序去重，并把重复次数当角标显示。
+		Dictionary<int, MIcon> dictionary = new Dictionary<int, MIcon>();
+		List<int> list2 = new List<int>();
+		foreach (int num2 in array3)
 		{
-			int rune = array3[k];
-			string text3 = TouhouApi.RuneImg(p.PrimaryColumn, rune);
-			if (text3.Length != 0)
+			string text6 = TouhouApi.RuneImg(p.PrimaryColumn, num2);
+			if (text6.Length == 0)
 			{
-				row.Runes.Add(new MIcon
-				{
-					Src = ImgCache.Cached(text3),
-					Tip = TouhouRune.Tip(p.PrimaryColumn, rune, "天赋 · ")
-				});
+				continue;
+			}
+			if (dictionary.ContainsKey(num2))
+			{
+				dictionary[num2].Num = (int.Parse(dictionary[num2].Num) + 1).ToString();
+				dictionary[num2].Tip = TouhouRune.Tip(p.PrimaryColumn, num2, "天赋 · ") + " ×" + dictionary[num2].Num;
+				continue;
+			}
+			MIcon mIcon = new MIcon
+			{
+				Src = ImgCache.Cached(text6),
+				Tip = TouhouRune.Tip(p.PrimaryColumn, num2, "天赋 · "),
+				Num = "1"
+			};
+			dictionary[num2] = mIcon;
+			list2.Add(num2);
+			row.Runes.Add(mIcon);
+		}
+		foreach (int num3 in list2)
+		{
+			MIcon mIcon2 = dictionary[num3];
+			if (mIcon2.Num == "1")
+			{
+				mIcon2.Num = "";
+			}
+			else
+			{
+				mIcon2.Tip = TouhouRune.Tip(p.PrimaryColumn, num3, "天赋 · ") + " ×" + mIcon2.Num;
 			}
 		}
+		// 站点的 primaryRunes 只给「点了哪几个」，不给各点几级，所以这里通常没有角标。
+		// 只有它偶尔带上重复项时才显示数量。
 		if (p.SecondaryRune > 0)
 		{
 			string text4 = TouhouApi.RuneImg(p.SecondaryColumn, p.SecondaryRune);
@@ -289,8 +320,18 @@ public partial class MatchWindow : Window, IComponentConnector
 			row.Stats.Add(new MIcon
 			{
 				Src = ImgCache.Cached(TouhouApi.StatImg(item.Id)),
-				Tip = item.Tip
+				Tip = item.Tip,
+				Num = ((item.Num > 1) ? item.Num.ToString() : "")
 			});
+		}
+		// 天赋的提示里也写了「×N」（买了几级），一样抠出来当角标。
+		foreach (MIcon mIcon4 in row.Runes)
+		{
+			Match match2 = Regex.Match(mIcon4.Tip ?? "", "×\\s*(\\d+)");
+			if (match2.Success && match2.Groups[1].Value != "1")
+			{
+				mIcon4.Num = match2.Groups[1].Value;
+			}
 		}
 		int[] array4 = TouhouApi.Nums(p.AbilityUpSeq);
 		List<MIcon> list = new List<MIcon>();
