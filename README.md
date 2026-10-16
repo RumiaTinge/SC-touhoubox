@@ -2,6 +2,13 @@
 
 《东方月灵传》的 Windows 桌面辅助工具，C# / WPF / .NET 9。
 
+## 下载
+
+**[⬇ 下载最新版 SC-touhoubox.zip](https://github.com/RumiaTinge/SC-touhoubox/releases/latest)**
+
+解压后直接双击 `SC-touhoubox.exe` 即可运行 —— 自带 .NET 运行时和全部图片资源，不用另外装东西。
+（想自己编译见下面「编译与运行」。）
+
 ## 功能
 
 | 功能 | 说明 |
