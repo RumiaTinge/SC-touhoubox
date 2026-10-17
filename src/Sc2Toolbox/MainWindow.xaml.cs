@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -73,7 +73,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			RestoreFolds();
 		};
 		RefreshKeepStatus();
-		TxtAboutPaths.Text = "设置文件：" + Settings.FilePath + "\n日志文件：" + L.File + "\n房间接口：POST http://127.0.0.1:" + Ctx.S.LobbyPort + "/lobbyPlayerList\n提示：如果「静默」等房一直失败，把本工具改成以管理员身份运行。";
+		TxtAboutPaths.Text = "设置文件：" + Settings.FilePath + "\n日志文件：" + L.File + "\n房间接口：POST http://127.0.0.1:" + Ctx.S.LobbyPort + "/lobbyPlayerList";
 		TbLog.Text = L.Tail(200);
 		RefreshBank();
 		_bankWatch = new DispatcherTimer
@@ -216,15 +216,8 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			SldOpacity.Value = Math.Max(SldOpacity.Minimum, Math.Min(SldOpacity.Maximum, s.OverlayOpacity));
 			TxtOpacity.Text = (int)Math.Round(SldOpacity.Value * 100.0) + "%";
 			SwKeep.IsChecked = s.KeepAliveEnabled;
-			RbHidden.IsChecked = s.KeepMode == "Hidden";
-			RbFocus.IsChecked = s.KeepMode == "Focus";
-			RbBoth.IsChecked = s.KeepMode == "Both";
-			if (!RbHidden.IsChecked.Value && !RbFocus.IsChecked.Value && !RbBoth.IsChecked.Value)
-			{
-				RbBoth.IsChecked = true;
-			}
 			TbInterval.Text = s.IntervalSec.ToString();
-			TbFocusEvery.Text = s.FocusEverySec.ToString();
+			TbAutoStop.Text = s.AutoStopIdleMin.ToString();
 			SwNoInterrupt.IsChecked = s.DontInterruptTyping;
 			SwPauseInMatch.IsChecked = s.PauseInMatch;
 			SwAlert.IsChecked = s.AlertEnabled;
@@ -271,17 +264,6 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		s.OverlayOnlyFilled = SwOnlyFilled.IsChecked == true;
 		s.OverlayOpacity = SldOpacity.Value;
 		s.KeepAliveEnabled = SwKeep.IsChecked == true;
-		Settings settings = s;
-		string keepMode;
-		if (RbHidden.IsChecked == true)
-		{
-			keepMode = "Hidden";
-		}
-		else
-		{
-			keepMode = ((RbFocus.IsChecked == true) ? "Focus" : "Both");
-		}
-		settings.KeepMode = keepMode;
 		s.DontInterruptTyping = SwNoInterrupt.IsChecked == true;
 		s.PauseInMatch = SwPauseInMatch.IsChecked == true;
 		s.AlertEnabled = SwAlert.IsChecked == true;
@@ -350,7 +332,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 	{
 		Settings s = Ctx.S;
 		s.IntervalSec = ParseNum(TbInterval, 5, 600, 30);
-		s.FocusEverySec = ParseNum(TbFocusEvery, 10, 3600, 90);
+		s.AutoStopIdleMin = ParseNum(TbAutoStop, 0, 1440, 10);
 		s.RoomSlots = ParseNum(TbSlots, 2, 10, 10);
 		s.ToastSeconds = ParseNum(TbToastSec, 1, 60, 4);
 		s.AlertAutoHideSec = ParseNum(TbAutoHide, 0, 3600, 30);
@@ -959,9 +941,9 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		}
 		if (m == "Focus")
 		{
-			return "抢焦点";
+			return "静默";
 		}
-		return "静默+抢焦点";
+		return "静默";
 	}
 
 	public void OnLobby(LobbyState st)

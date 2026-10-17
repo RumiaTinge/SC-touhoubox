@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -562,6 +562,77 @@ public static class Sc2
 		}
 		LastDiag = stringBuilder.ToString();
 		return false;
+	}
+
+	/// <summary>玩家最近 2.5 秒内还在动键鼠 —— 说明他很可能正在聊天框里打字，
+	/// 这时候绝对不能往游戏里发回车（会把他打的字直接发出去）。</summary>
+	public const int ChatPokeGuardMs = 2500;
+
+
+	/// <summary>大厅/对局里「敲一下回车打开聊天框，再按 Esc 关掉」——不发任何消息。
+	/// 大厅等房时比抖鼠标更不容易被当成挂机，而且不抢焦点、不闪屏、最小化也生效。
+	/// ★ Esc 在 SC2 里是取消/关闭键（框没开时按会关房间、弹菜单），所以：
+	///   ① 只在「我们确定框是开的」时候才发 Esc；
+	///   ② 玩家最近 2.5 秒内有输入（可能在打字）就整轮跳过。</summary>
+	/// <summary>true = 用方向键保活（默认）；false = 旧的聊天框 Enter/Esc 方案。</summary>
+	public static bool UseArrowPoke { get; set; } = true;
+
+	public static bool ChatPoke(nint h, out string how)
+	{
+		uint idle = IdleMs();
+		if (idle < ChatPokeGuardMs)
+		{
+			how = "你正在操作，跳过聊天框（" + idle + "ms 前有输入）";
+			return false;
+		}
+		how = "回车开聊天框";
+		try
+		{
+			// ★ 草稿闸门已彻底移除。实测那两个「固定槽位」其实是「上一次输入」的缓冲，
+			//   聊天框关掉之后里面仍然留着上次打的字，所以它不能代表「框现在开着」。
+			//   拿它当依据去按 Esc，就会在框其实关着时把房间关掉 / 弹出菜单（已多次踩到）。
+			//   现在唯一的 Esc 就是下面紧跟在 Enter 之后那一下 —— 那时框必定是开的。
+			//   顺便记一下槽位内容，方便观察它在关闭后是否残留。
+			string draft = TouhouChat.DraftAtFixed();
+			if (!string.IsNullOrEmpty(draft))
+			{
+				L.W("聊天框槽位残留：" + draft + "（仅记录，不做动作）");
+			}
+			// ★ 现在改成「只按方向键」，完全不碰 Enter / Esc。
+			//   理由：回车会打开聊天框，如果玩家那边框本来就开着，这一下回车就把草稿发出去了；
+			//   而 Esc 在框没开时会关房间 / 弹菜单。两个键都有副作用，方向键没有。
+			//   在大厅房间里方向键只是转视角/无操作，在任何界面都不会打开输入框。
+			if (UseArrowPoke)
+			{
+				nint[] keys = new nint[4] { 0x25, 0x26, 0x27, 0x28 };
+				for (int i = 0; i < keys.Length; i++)
+				{
+					PostMessage(h, 0x100u, keys[i], (nint)0x014B0001);
+					Thread.Sleep(30);
+					PostMessage(h, 0x101u, keys[i], (nint)0xC14B0001u);
+					Thread.Sleep(40);
+				}
+				how = "方向键";
+				return true;
+			}
+			// 旧方案（聊天框）：Enter 开框 → 等框出来 → Esc 关框。
+			//    ★ 这里绝不再补任何「前导 Esc」—— 框没开时按 Esc 会关房间/弹菜单。
+			bool flag = PostMessage(h, 0x100u, (nint)13, (nint)0x001C0001);
+			Thread.Sleep(40);
+			PostMessage(h, 0x101u, (nint)13, (nint)0xC01C0001u);
+			Thread.Sleep(260);
+			bool flag2 = PostMessage(h, 0x100u, (nint)27, (nint)0x00010001);
+			Thread.Sleep(40);
+			PostMessage(h, 0x101u, (nint)27, (nint)0xC0010001u);
+			Thread.Sleep(40);
+			return flag | flag2;
+		}
+		catch (Exception ex)
+		{
+			// 出异常时保留 _chatBoxOpen，下一轮会先补一个安全的 Esc 再继续。
+			how = "回车失败：" + ex.GetType().Name;
+			return false;
+		}
 	}
 
 	public static bool PostJiggle(nint h)

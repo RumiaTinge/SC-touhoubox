@@ -325,6 +325,7 @@ public static class TouhouChat
 	/// <summary>正在进行的这一局的聊天（可能为空）。不会阻塞 UI。</summary>
 	public static List<ChatLine> SnapshotLive()
 	{
+		LoadCache();
 		lock (LiveLock)
 		{
 			return new List<ChatLine>(LiveLines);
@@ -406,12 +407,125 @@ public static class TouhouChat
 	/// <summary>清空累积的实时聊天（换局时用）。</summary>
 	public static void ResetLive()
 	{
+		SaveCache();
 		lock (LiveLock)
 		{
 			LiveLines.Clear();
 			LiveRaw.Clear();
 			LiveLastHit = DateTime.MinValue;
 			LiveEmptyPolls = 0;
+		}
+		_cacheLoaded = false;
+	}
+
+	// ==== 上一局的聊天缓存：写到数据目录，隔天自动清空 ====
+
+	private static bool _cacheLoaded;
+
+	private static DateTime _lastCacheSave = DateTime.MinValue;
+
+	private static string CacheFile()
+	{
+		return Path.Combine(L.Dir, "chat_cache.txt");
+	}
+
+	/// <summary>把当前累积的聊天写盘（对局结束时调用）。</summary>
+	public static void SaveCache()
+	{
+		try
+		{
+			lock (LiveLock)
+			{
+				if (LiveLines.Count == 0)
+				{
+					L.W("聊天缓存：没有内容，跳过");
+					return;
+				}
+				StringBuilder stringBuilder = new StringBuilder();
+				stringBuilder.AppendLine(DateTime.Now.ToString("yyyy-MM-dd"));
+				foreach (ChatLine liveLine in LiveLines)
+				{
+					string text = Convert.ToBase64String(Encoding.UTF8.GetBytes(liveLine.Raw ?? ""));
+					stringBuilder.AppendLine(liveLine.Offset.ToString() + "\t" + text);
+				}
+				File.WriteAllText(CacheFile(), stringBuilder.ToString(), new UTF8Encoding(false));
+				L.W("聊天缓存已写盘 " + LiveLines.Count + " 条 → " + CacheFile());
+			}
+		}
+		catch (Exception ex)
+		{
+			L.W("聊天缓存保存失败: " + ex.Message);
+		}
+	}
+
+	/// <summary>启动时把上一局缓存读回来；不是今天的就直接删掉。</summary>
+	public static void LoadCache()
+	{
+		if (_cacheLoaded)
+		{
+			return;
+		}
+		_cacheLoaded = true;
+		try
+		{
+			string path = CacheFile();
+			if (!File.Exists(path))
+			{
+				return;
+			}
+			string[] array = File.ReadAllLines(path, Encoding.UTF8);
+			if (array.Length == 0)
+			{
+				return;
+			}
+			if (array[0].Trim() != DateTime.Now.ToString("yyyy-MM-dd"))
+			{
+				File.Delete(path);
+				L.W("聊天缓存是隔天的，已清空");
+				return;
+			}
+			lock (LiveLock)
+			{
+				if (LiveLines.Count > 0)
+				{
+					return;
+				}
+				for (int i = 1; i < array.Length; i++)
+				{
+					string[] array2 = array[i].Split('\t');
+					if (array2.Length >= 2)
+					{
+						long result = 0L;
+						long.TryParse(array2[0], out result);
+						string text;
+						try
+						{
+							text = Encoding.UTF8.GetString(Convert.FromBase64String(array2[1]));
+						}
+						catch
+						{
+							continue;
+						}
+						ChatLine chatLine = ParseLive(text);
+						if (chatLine != null)
+						{
+							chatLine.Offset = ((result > 0) ? result : DateTime.Now.Ticks);
+							chatLine.Live = false;
+							LiveLines.Add(chatLine);
+							LiveRaw.Add(text);
+						}
+					}
+				}
+				LiveLines.Sort(delegate(ChatLine a, ChatLine b)
+				{
+					return a.Offset.CompareTo(b.Offset);
+				});
+				L.W("已载入上一局的聊天缓存 " + LiveLines.Count + " 条");
+			}
+		}
+		catch (Exception ex2)
+		{
+			L.W("聊天缓存读取失败: " + ex2.Message);
 		}
 	}
 
@@ -425,6 +539,8 @@ public static class TouhouChat
 				LiveEmptyPolls++;
 				if (LiveEmptyPolls >= 3)
 				{
+					// 游戏退了／换局了：先把这局的聊天存下来，再清空
+					SaveCache();
 					LiveLines.Clear();
 					LiveRaw.Clear();
 					LiveLastHit = DateTime.MinValue;
@@ -488,6 +604,12 @@ public static class TouhouChat
 				{
 					return a.Offset.CompareTo(b.Offset);
 				});
+				// 边聊边存（最多 20 秒一次），这样工具被强杀也不会丢历史
+				if ((DateTime.Now - _lastCacheSave).TotalSeconds >= 20.0)
+				{
+					_lastCacheSave = DateTime.Now;
+					SaveCache();
+				}
 			}
 			while (LiveLines.Count > 400)
 			{
@@ -506,6 +628,16 @@ public static class TouhouChat
 			m = LiveRx2.Match(raw);
 		}
 		if (!m.Success)
+		{
+			return null;
+		}
+		// needle 只认 "</c>: "，游戏内存里别的标记也可能撞上它（解出来是 texsheet=... 这类碎片），丢掉。
+		// 注意：表情消息正文就是 <img path="emoji/xxx.png"/>，所以不能一见 "/>" 就丢。
+		string rawCh = m.Groups["ch"].Value;
+		string rawWho = m.Groups["who"].Value;
+		string rawMsg = m.Groups["msg"].Value;
+		bool hasImg = rawMsg.IndexOf("<img", StringComparison.OrdinalIgnoreCase) >= 0;
+		if (rawWho.IndexOf('=') >= 0 || rawCh.Length > 24 || (!hasImg && rawMsg.IndexOf("\"/>", StringComparison.Ordinal) >= 0) || rawMsg.IndexOf("texsheet", StringComparison.OrdinalIgnoreCase) >= 0 || rawMsg.IndexOf("texanim", StringComparison.OrdinalIgnoreCase) >= 0)
 		{
 			return null;
 		}
@@ -555,6 +687,318 @@ public static class TouhouChat
 	}
 
 	/// <summary>扫一遍进程内存，返回所有形如「[频道] …&lt;/w&gt;&lt;/c&gt;: 正文」的原始行（按地址排序）。</summary>
+	private static readonly byte[] HeapNeedle = Encoding.UTF8.GetBytes("iH3");
+
+	/// <summary>基线字符串（建库时游戏里已有的文本，都不是草稿）。</summary>
+	private static HashSet<string> _known = new HashSet<string>(StringComparer.Ordinal);
+
+	/// <summary>上一次扫描的候选集合，用来要求草稿「连续两次都在」。</summary>
+	private static HashSet<string> _lastCand = new HashSet<string>(StringComparer.Ordinal);
+
+	/// <summary>是否已经建立过基线。</summary>
+	private static bool _baselined;
+	/// <summary>粗判一段文本像不像玩家打的字（排除资源标识符、路径、HTML）。</summary>
+	private static bool IsDraftText(string s)
+	{
+		if (s.Length < 2 || s.Length > 60)
+		{
+			return false;
+		}
+		if (s.IndexOf('<') >= 0 || s.IndexOf('>') >= 0 || s.IndexOf('/') >= 0 || s.IndexOf('\\') >= 0)
+		{
+			return false;
+		}
+		int cjk = 0;
+		int alnum = 0;
+		foreach (char ch in s)
+		{
+			if (ch < ' ' || ch == '\uFFFD' || (ch >= '\uE000' && ch <= '\uF8FF'))
+			{
+				return false;
+			}
+			if (ch >= '\u3000' && ch <= '\u9FFF')
+			{
+				cjk++;
+			}
+			else if (char.IsLetterOrDigit(ch))
+			{
+				alnum++;
+			}
+			else if (ch != ' ' && ch != '.' && ch != ',' && ch != '!' && ch != '?' && ch != ':' && ch != ';' && ch != '-' && ch != '(' && ch != ')' && ch != '[' && ch != ']')
+			{
+				return false;
+			}
+		}
+		return cjk >= 1 || alnum >= 3;
+	}
+	/// <summary>聊天框输入串的两个固定槽位（实测跨进程重启都不变）。框打开时里面是玩家打的字，关掉就空。</summary>
+	private static readonly long[] DraftSlots = new long[2] { 0x20C6CE38350L, 0x20C7021FC60L };
+
+	/// <summary>直接读两个固定槽位，判断聊天框里有没有还没发出去的字。空串 = 没有。</summary>
+	public static string DraftAtFixed()
+	{
+		int pid = Sc2Pid();
+		if (pid == 0)
+		{
+			return "";
+		}
+		IntPtr h = OpenProcess(0x0410, false, pid);
+		if (h == IntPtr.Zero)
+		{
+			return "";
+		}
+		try
+		{
+			byte[] buf = new byte[96];
+			foreach (long slot in DraftSlots)
+			{
+				IntPtr got;
+				if (!ReadProcessMemory(h, new IntPtr(slot), buf, (IntPtr)buf.Length, out got))
+				{
+					continue;
+				}
+				int have = got.ToInt32();
+				// 槽位开头是 16 字节堆块头（iH3 + 长度之类），真正的文本从后面才开始。
+				// 所以在整个缓冲里找第一段「连续可见字符」，而不是从 0 开始读。
+				int start = 0;
+				while (start < have && (buf[start] < 0x20 || buf[start] == 0x7F))
+				{
+					start++;
+				}
+				int end = start;
+				while (end < have && end < start + 60 && buf[end] >= 0x20 && buf[end] != 0x7F)
+				{
+					end++;
+				}
+				if (end - start < 2)
+				{
+					continue;
+				}
+				string s = Encoding.UTF8.GetString(buf, start, end - start).Trim();
+				if (IsDraftText(s))
+				{
+					return s;
+				}
+			}
+			return "";
+		}
+		finally
+		{
+			CloseHandle(h);
+		}
+	}
+	/// <summary>上一次扫到的「聊天框里还没发出去的草稿」。空串 = 没检测到。</summary>
+	public static volatile string DraftNow = "";
+
+	/// <summary>至少完成过一次草稿扫描（没扫过之前不要贸然按回车）。</summary>
+	public static volatile bool DraftScanned;
+
+	private static DateTime _draftNext = DateTime.MinValue;
+	private static int _draftBusy;
+
+	/// <summary>后台扫一次草稿（最多 8 秒一次），不阻塞调用方。</summary>
+	public static void KickDraft()
+	{
+		if (DateTime.Now < _draftNext)
+		{
+			return;
+		}
+		if (Interlocked.Exchange(ref _draftBusy, 1) != 0)
+		{
+			return;
+		}
+		int pid = Sc2Pid();
+		if (pid == 0)
+		{
+			Interlocked.Exchange(ref _draftBusy, 0);
+			return;
+		}
+		ThreadPool.QueueUserWorkItem(delegate
+		{
+			try
+			{
+				DraftNow = ScanDraft(pid);
+				DraftScanned = true;
+			}
+			catch (Exception ex)
+			{
+				L.W("草稿扫描失败：" + ex.Message);
+			}
+			finally
+			{
+				_draftNext = DateTime.Now.AddSeconds(20);
+				Interlocked.Exchange(ref _draftBusy, 0);
+			}
+		});
+	}
+
+	/// <summary>扫内存找聊天框草稿：SC2 把它当普通小字符串存在堆块里（紧跟 iH3 头），
+	/// 纯文本、不含 HTML 标记。同一条文本会出现 2 次以上，用它排除噪声。</summary>
+	private static string ScanDraft(int pid)
+	{
+		IntPtr h = OpenProcess(0x0410, false, pid);
+		if (h == IntPtr.Zero)
+		{
+			return "";
+		}
+		byte[] buffer = new byte[MemChunk + MemOverlap + 4096];
+		Dictionary<string, int> count = new Dictionary<string, int>(StringComparer.Ordinal);
+		int mbiSize = Marshal.SizeOf(typeof(MemBasicInfo));
+		IntPtr addr = IntPtr.Zero;
+		MemBasicInfo m;
+		try
+		{
+			while (VirtualQueryEx(h, addr, out m, (IntPtr)mbiSize) != IntPtr.Zero)
+			{
+				long size = m.Size.ToInt64();
+				bool ok = m.State == 0x1000 && (m.Protect & 0x100) == 0 && (m.Protect & 0x01) == 0 && (m.Protect & 0x04) != 0 && size > 0;
+				if (ok)
+				{
+					long off = 0;
+					while (off < size)
+					{
+						int want = (int)Math.Min((long)MemChunk, size - off);
+						IntPtr got;
+						if (!ReadProcessMemory(h, new IntPtr(m.Base.ToInt64() + off), buffer, (IntPtr)want, out got))
+						{
+							break;
+						}
+						int have = got.ToInt32();
+						if (have <= 0)
+						{
+							break;
+						}
+						int limit = have - 320;
+						for (int i = 0; i <= limit; i++)
+						{
+							if (buffer[i] != HeapNeedle[0] || buffer[i + 1] != HeapNeedle[1] || buffer[i + 2] != HeapNeedle[2])
+							{
+								continue;
+							}
+							int s = i + 6;
+							while (s < i + 20 && s < have && buffer[s] < 0x20)
+							{
+								s++;
+							}
+							int e = s;
+							while (e < have && e < s + 80 && buffer[e] >= 0x20 && buffer[e] != 0x7F)
+							{
+								e++;
+							}
+							if (e - s < 2 || e - s > 60)
+							{
+								continue;
+							}
+							string cand = Encoding.UTF8.GetString(buffer, s, e - s).Trim();
+							if (!LooksLikeDraft(cand))
+							{
+								continue;
+							}
+							int n;
+							count.TryGetValue(cand, out n);
+							count[cand] = n + 1;
+						}
+						off += want;
+					}
+				}
+				addr = new IntPtr(m.Base.ToInt64() + size);
+			}
+		}
+		finally
+		{
+			CloseHandle(h);
+		}
+	/// <summary>判断一段字符串像不像「玩家手打的字」：排除乱码、路径、UI 标识、HTML。</summary>
+	static bool LooksLikeDraft(string s)
+	{
+		if (s.Length < 2 || s.Length > 60)
+		{
+			return false;
+		}
+		if (s.IndexOf('<') >= 0 || s.IndexOf('>') >= 0 || s.IndexOf('/') >= 0 || s.IndexOf('\\') >= 0)
+		{
+			return false;
+		}
+		bool hasCjk = false;
+		int cjkCount = 0;
+		bool hasLetter = false;
+		foreach (char ch in s)
+		{
+			if (ch < ' ')
+			{
+				return false;
+			}
+			if (ch == '\uFFFD')
+			{
+				return false;
+			}
+			if (ch >= '\uE000' && ch <= '\uF8FF')
+			{
+				return false;
+			}
+			if (ch >= '\u3000' && ch <= '\u9FFF')
+			{
+				hasCjk = true;
+				cjkCount++;
+			}
+			else if (char.IsLetterOrDigit(ch))
+			{
+				hasLetter = true;
+			}
+			else if (ch != ' ' && ch != '.' && ch != ',' && ch != '!' && ch != '?' && ch != ':' && ch != ';' && ch != '-' && ch != '(' && ch != ')' && ch != '[' && ch != ']')
+			{
+				return false;
+			}
+		}
+		// 中文草稿要求至少 2 个汉字（单个汉字多半是内存碎片）；纯英文草稿要求至少 4 个字符
+		if (hasCjk)
+		{
+			return cjkCount >= 2;
+		}
+		return hasLetter && s.Length >= 4;
+	}
+		string best = "";
+		int bestCount = 0;
+		// ★ 草稿是「新冒出来的文本」：第一次扫描把当时所有候选记成基线（游戏自带字符串），
+		//   之后只有「基线里没有、而且连续两次扫描都在」的候选才算草稿。
+		if (!_baselined)
+		{
+			foreach (string k in count.Keys)
+			{
+				_known.Add(k);
+			}
+			_baselined = true;
+			L.W("草稿：基线建立，登记 " + _known.Count + " 条字符串");
+			return "";
+		}
+		foreach (KeyValuePair<string, int> kv in count)
+		{
+			if (_known.Contains(kv.Key))
+			{
+				continue;
+			}
+			if (kv.Value < 1 || kv.Value > 8)
+			{
+				continue;
+			}
+			if (!_lastCand.Contains(kv.Key))
+			{
+				continue;
+			}
+			if (kv.Key.Length > best.Length)
+			{
+				best = kv.Key;
+				bestCount = kv.Value;
+			}
+		}
+		_lastCand = new HashSet<string>(count.Keys, StringComparer.Ordinal);
+		if (best.Length > 0)
+		{
+			L.W("草稿：检测到「" + best + "」（出现 " + bestCount + " 次）");
+		}
+		return best;
+	}
+
 	private static List<string> ScanChat(int pid)
 	{
 		List<string> found = new List<string>();

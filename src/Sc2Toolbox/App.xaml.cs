@@ -768,6 +768,14 @@ public partial class App : System.Windows.Application
 	{
 		try
 		{
+			// 退出前把这一局的聊天存下来，下次开机能接着看（隔天会自动清空）
+			TouhouChat.SaveCache();
+		}
+		catch
+		{
+		}
+		try
+		{
 			if (_src != null)
 			{
 				nint handle = new WindowInteropHelper(Ctx.Main).Handle;

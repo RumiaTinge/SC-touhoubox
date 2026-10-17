@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 
 namespace Sc2Toolbox;
@@ -49,7 +49,26 @@ public class KeepAlive
 		}
 	}
 
-	public void Start()
+		/// <summary>键鼠长时间静止就自动停 —— 避免人不在电脑前还一直挂着。</summary>
+	private bool CheckAutoStop()
+	{
+		try
+		{
+			int min = Ctx.S.AutoStopIdleMin;
+			if (min <= 0) return false;
+			uint idle = Sc2.IdleMs();
+			if (idle < (uint)min * 60000u) return false;
+			L.W("键鼠已静止 " + (int)(idle / 60000u) + " 分钟（阈值 " + min + " 分钟），自动关闭挂机等房");
+			Stop();
+			return true;
+		}
+		catch (Exception ex)
+		{
+			L.W("自动关闭判断失败：" + ex.Message);
+			return false;
+		}
+	}
+public void Start()
 	{
 		if (!_run)
 		{
@@ -150,6 +169,7 @@ public class KeepAlive
 
 	private void Tick(ref DateTime nextFocus)
 	{
+			if (CheckAutoStop()) { return; }
 		Settings s = Ctx.S;
 		nint num = Sc2.Find();
 		if (num == IntPtr.Zero)
@@ -178,7 +198,9 @@ public class KeepAlive
 				return;
 			}
 		}
-		bool flag = s.KeepMode == "Hidden" || s.KeepMode == "Both";
+		// 现在只有一种保活动作：前台真实鼠标微动 / 后台回车开聊天框。
+		// 「切换程序」不再切屏，所以这条永远走静默路径。
+		bool flag = true;
 		bool flag2 = s.KeepMode == "Focus" || s.KeepMode == "Both";
 		bool flag3 = flag2 && DateTime.Now >= nextFocus;
 		if (flag3 && s.DontInterruptTyping)
@@ -216,17 +238,54 @@ public class KeepAlive
 			{
 				flag5 = true;
 				flag6 = Sc2.Inject(num, s.KeepKeyboard, out how, out verified);
+				if (!flag6)
+				{
+					// 前台注入被系统挡了（普通权限动不了高完整性进程，或你正在动键鼠）。
+					// 以前这里会抢焦点，现在改成回车开聊天框 —— 不切窗口、照样算活跃。
+					string how4 = "";
+					if (s.KeepChatPoke && Sc2.ChatPoke(num, out how4))
+					{
+						flag6 = true;
+						verified = true;
+						flag5 = false;
+						how = how4;
+					}
+				}
 			}
 			else
 			{
-				flag4 = Sc2.PostJiggle(num);
+				// 后台时优先「回车开聊天框再 Esc」——不发消息、不抢焦点、不闪屏。
+				// 拿不到窗口/失败了才退回抖鼠标。
+				string how2 = "";
+				bool flag7 = s.KeepChatPoke && Sc2.ChatPoke(num, out how2);
+				if (s.KeepChatPoke)
+				{
+					how = how2;
+				}
+				flag4 = flag7 || Sc2.PostJiggle(num);
+				if (flag7)
+				{
+					// 聊天框已经打开过 → 这轮就算活跃了，不要再抢焦点（抢焦点会闪屏）
+					verified = true;
+				}
 			}
 		}
 		if (flag3 && !verified)
 		{
-			// 只有「游戏在前台但这轮投递没能被系统确认」才需要抢焦点兜底。
-			// 前台真实输入已经生效时（verified）绝不抢焦点 —— 抢焦点会把游戏切出去再切回来，屏幕上就是一闪。
-			flag6 = Sc2.FocusPulse(num, s.KeepKeyboard, out how, out verified);
+			// 原来是 Sc2.FocusPulse（切走再切回前台）—— 每抢一次焦点屏幕上就是一闪，
+			// 而且在游戏里前台本来就用不着抢。现在改成「回车开聊天框再 Esc」：
+			// 不发消息、不切窗口、不闪屏。
+			string how3 = "";
+			if (Sc2.ChatPoke(num, out how3))
+			{
+				flag6 = true;
+				verified = true;
+				how = how3;
+			}
+			else
+			{
+				how = "聊天框失败 · 未保活";
+			}
 		}
 		if (flag6)
 		{
@@ -259,13 +318,13 @@ public class KeepAlive
 		else if (flag5)
 		{
 			Status = "等房失败：游戏在前台，注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
-			Note = (Admin.IsElevated ? "已经用管理员权限运行，但注入仍未生效。可以试试把等房方式改成「抢焦点」。" : "当前不是管理员身份运行！星际争霸 II 是高完整性进程，普通权限注入的鼠标/键盘会被 Windows 静默挡下。请关掉本工具，右键「以管理员身份运行」。");
+			Note = "注入没被系统接受，已自动改用聊天框保活。";
 			L.W("脉冲失败（静默·前台注入未生效）：" + Sc2.LastDiag);
 		}
 		else if (flag3)
 		{
 			Status = "等房失败：注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
-			Note = (Admin.IsElevated ? "已经用管理员权限运行，但注入仍未生效。可以试试把等房方式改成「抢焦点」，或确认游戏窗口没有被别的东西挡住。" : "当前不是管理员身份运行！星际争霸 II 是高完整性进程，普通权限注入的鼠标/键盘会被 Windows 静默挡下（已实测：游戏在前台时注入无效，5 分钟必被踢）。请关掉本工具，右键「以管理员身份运行」。");
+			Note = "注入没被系统接受，已自动改用聊天框保活。";
 			L.W("脉冲失败：注入未生效 " + Sc2.LastDiag);
 		}
 		else if (flag4)
@@ -281,7 +340,7 @@ public class KeepAlive
 		else if (flag)
 		{
 			Status = "静默投递被系统拒绝";
-			Note = "静默模式靠 PostMessage，如果游戏是管理员进程会被系统挡下（返回值 False）。解决办法：右键本工具「以管理员身份运行」，或把等房方式改成「抢焦点」。";
+			Note = "";
 		}
 	}
 }

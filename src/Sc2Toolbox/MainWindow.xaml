@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Window x:Class="Sc2Toolbox.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="SC-touhoubox · 东方月灵传助手" Height="680" Width="1000" MinHeight="560" MinWidth="880" Background="{StaticResource B.Window}" Foreground="{StaticResource B.Text}" WindowStartupLocation="CenterScreen" FontFamily="Microsoft YaHei UI" WindowStyle="None" ResizeMode="CanResize" Icon="/app.ico" xmlns:sc2toolbox="clr-namespace:Sc2Toolbox;assembly=SC-touhoubox">
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
@@ -199,7 +199,7 @@
           <Border Style="{StaticResource Card}" Background="{StaticResource B.WarnSoft}" BorderBrush="{StaticResource B.Warn}" BorderThickness="1" Margin="0,12,0,0">
             <StackPanel>
               <TextBlock Text="⚠ 请确认自己真的有充足的时间再考虑开启此功能！" Foreground="{StaticResource B.Warn}" FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
-              <TextBlock Text="开启后会持续往游戏窗口发送键鼠输入。挂机等房本身违反暴雪 EULA 的精神，也可能让你在不知情的情况下被留在房间里占位 —— 请自行判断风险，并确保你确实有时间打完这一局。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0" />
+              <TextBlock Text="功能只是为了在你等车的时候能做其他的事，从而不会被影响。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0" />
             </StackPanel>
           </Border>
           <Border Style="{StaticResource Card}">
@@ -213,13 +213,6 @@
                 <TextBlock Grid.Column="0" Text="启用挂机等房" Style="{StaticResource Body}" />
                 <ToggleButton Name="SwKeep" Grid.Column="1" Style="{StaticResource Switch}" Checked="Any_Changed" Unchecked="Any_Changed" />
               </Grid>
-              <TextBlock Text="等房方式" Style="{StaticResource Body}" Margin="0,12,0,6" />
-              <StackPanel Orientation="Horizontal">
-                <RadioButton Name="RbHidden" Style="{StaticResource Seg}" GroupName="keep" Content="静默（仅在游戏内生效）" Checked="Any_Changed" />
-                <RadioButton Name="RbFocus" Style="{StaticResource Seg}" GroupName="keep" Content="切换程序（会闪烁黑屏）" Margin="8,0,0,0" Checked="Any_Changed" />
-                <RadioButton Name="RbBoth" Style="{StaticResource Seg}" GroupName="keep" Content="两者都用（推荐额外设置）" Margin="8,0,0,0" Checked="Any_Changed" />
-              </StackPanel>
-              <TextBlock Text="· 静默：只在游戏窗口里生效 —— 游戏本来就在前台时走真实输入（能自检），游戏在后台时只能投递消息、无法确认是否记账。&#xA;· 切换程序：把游戏切到前台再切回去，会把你的鼠标键鼠接管一下，屏幕上会闪一下黑屏，但最稳、百分百有效。&#xA;· 两者都用（推荐）：平时用静默，超过下面的「切换程序兜底间隔」还没确认成功就切一次程序。推荐额外把「切换程序兜底间隔」设成 90 秒。" Style="{StaticResource Muted}" Margin="0,8,0,0" />
               <Grid Margin="0,14,0,0">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -233,8 +226,8 @@
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="110" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="切换程序兜底间隔（秒）— 只有「两者都用」时生效" Style="{StaticResource Body}" />
-                <TextBox Name="TbFocusEvery" Grid.Column="1" Style="{StaticResource Tb}" LostFocus="Num_LostFocus" KeyDown="Num_KeyDown" />
+                <TextBlock Grid.Column="0" Text="键鼠连续静止多少分钟就自动关闭（0 = 不自动关闭）" Style="{StaticResource Body}" />
+                <TextBox Name="TbAutoStop" Grid.Column="1" Style="{StaticResource Tb}" LostFocus="Num_LostFocus" KeyDown="Num_KeyDown" />
               </Grid>
               <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions>
@@ -718,10 +711,10 @@
           <Border Style="{StaticResource Card}">
             <StackPanel>
               <TextBlock Text="关于" Style="{StaticResource CardHead}" />
-              <TextBlock Style="{StaticResource Body}" TextWrapping="Wrap" Text="SC-touhoubox v1.1 · 面向《星际争霸II》国服（网易/战网）公开房间的挂机保护 + 开局提醒 + 东方月灵传数据面板。" />
+              <TextBlock Style="{StaticResource Body}" TextWrapping="Wrap" Text="SC-touhoubox v1.2 · 面向《星际争霸II》国服（网易/战网）公开房间的挂机保护 + 开局提醒 + 东方月灵传数据面板。" />
               <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" Text="· 挂机判定：暴雪服务端在房间内要求「有键鼠输入送进游戏窗口」，约 5 分钟没有任何输入就断开连接。窗口可见但没焦点不算，最小化也不算。无预警、无开关、房主也关不掉。" />
               <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" Text="· 房间列表：读本机 touhou_client.exe 在 127.0.0.1:8030 提供的 /lobbyPlayerList（POST，返回冒号分隔的 10 个槽位）。只读，不发任何指令。" />
-              <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" Text="· 提醒：第三方自动化在暴雪 EULA 上有争议。本工具只做「鼠标净位移 0 的 1 像素抖动」和只读查询，不做游戏内操作，但请自行判断风险。" />
+              <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" Text="· 保活方式：往游戏窗口投递方向键（↑↓←→）。不开聊天框、不发消息、不抢焦点，所以不会打断你正在打的字。" />
               <TextBlock Name="TxtAboutPaths" Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" />
             </StackPanel>
           </Border>

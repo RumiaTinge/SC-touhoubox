@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -39,6 +39,8 @@ public class Settings
 	public string KeepMode { get; set; } = "Both";
 
 	public int IntervalSec { get; set; } = 30;
+	/// <summary>键鼠连续静止多少分钟就自动关掉挂机等房（0 = 不自动关）。</summary>
+	public int AutoStopIdleMin { get; set; } = 10;
 
 	public int FocusEverySec { get; set; } = 90;
 
@@ -47,6 +49,8 @@ public class Settings
 	public bool KeepKeyboard { get; set; } = true;
 
 	public bool PauseInMatch { get; set; } = true;
+	/// <summary>后台保活时用「回车开聊天框再 Esc」代替抖鼠标（不发消息）。</summary>
+	public bool KeepChatPoke { get; set; } = true;
 
 	public bool AlertEnabled { get; set; } = true;
 
