@@ -44,3 +44,5 @@
 /data/
 /_notes/
 /_out/
+/.acl-recovery/
+/debug.log

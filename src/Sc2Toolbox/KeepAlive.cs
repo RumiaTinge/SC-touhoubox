@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 
 namespace Sc2Toolbox;
@@ -80,7 +80,7 @@ public void Start()
 				Name = "keepalive"
 			};
 			_th.Start();
-			L.W("等房已启动：方式=" + Ctx.S.KeepMode + " 间隔=" + Ctx.S.IntervalSec + "s 抢焦点兜底=" + Ctx.S.FocusEverySec + "s");
+			L.W("等房已启动：间隔=" + Ctx.S.IntervalSec + "s 保活方式=" + (Sc2.UseArrowPoke ? "方向键" : "回车开聊天框") + " 空闲自动关闭=" + ((Ctx.S.AutoStopIdleMin > 0) ? (Ctx.S.AutoStopIdleMin + " 分钟") : "关"));
 		}
 	}
 
@@ -265,7 +265,9 @@ public void Start()
 				flag4 = flag7 || Sc2.PostJiggle(num);
 				if (flag7)
 				{
-					// 聊天框已经打开过 → 这轮就算活跃了，不要再抢焦点（抢焦点会闪屏）
+					// 方向键已经投递进游戏窗口 → 这轮就算活跃了。
+					// 这里必须把 flag6 也置真，否则会掉到「无法自检」那个分支里白报未保活。
+					flag6 = true;
 					verified = true;
 				}
 			}
@@ -305,7 +307,7 @@ public void Start()
 			}
 			else
 			{
-				lastKind = (flag4 ? "抢焦点+静默" : "抢焦点");
+				lastKind = (flag4 ? "方向键+鼠标微动" : "方向键");
 			}
 			keepAlive.LastKind = lastKind;
 			string text2 = ((how.Length > 0) ? (" / " + how) : "");
@@ -317,15 +319,15 @@ public void Start()
 		}
 		else if (flag5)
 		{
-			Status = "等房失败：游戏在前台，注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
-			Note = "注入没被系统接受，已自动改用聊天框保活。";
-			L.W("脉冲失败（静默·前台注入未生效）：" + Sc2.LastDiag);
+			Status = "等房失败：游戏在前台，注入被系统拒绝" + ((how.Length > 0) ? ("（" + how + "）") : "") + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
+			Note = "以前台真实输入为主，被拒时自动改用方向键。";
+			L.W("脉冲失败（前台注入被拒）：" + how + "  " + Sc2.LastDiag);
 		}
 		else if (flag3)
 		{
-			Status = "等房失败：注入没被系统接受" + ((Sc2.LastDiag.Length > 0) ? ("（" + Sc2.LastDiag + "）") : "");
-			Note = "注入没被系统接受，已自动改用聊天框保活。";
-			L.W("脉冲失败：注入未生效 " + Sc2.LastDiag);
+			Status = "等房失败：方向键没送进去" + ((how.Length > 0) ? ("（" + how + "）") : "");
+			Note = "方向键投递失败，下一轮会再试。";
+			L.W("脉冲失败（方向键没送进去）：" + how + "  " + Sc2.LastDiag);
 		}
 		else if (flag4)
 		{

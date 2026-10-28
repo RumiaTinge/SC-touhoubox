@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -579,15 +579,14 @@ public static class Sc2
 
 	public static bool ChatPoke(nint h, out string how)
 	{
-		uint idle = IdleMs();
-		if (idle < ChatPokeGuardMs)
-		{
-			how = "你正在操作，跳过聊天框（" + idle + "ms 前有输入）";
-			return false;
-		}
-		how = "回车开聊天框";
+		how = "方向键";
 		try
 		{
+			// ★ 方向键没有任何副作用，所以不受「你正在操作」守卫限制 ——
+			//   那个守卫是给旧的「回车开框 + Esc 关框」用的（那时候怕把玩家的草稿发出去，
+			//   也怕 Esc 关掉房间）。方向键在大厅里只是转视角，随时可以发。
+			//   以前这个守卫放在最前面，导致玩家一动键盘鼠标这一轮就直接判失败，
+			//   日志里就出现「脉冲失败：注入未生效」（其实是自己跳过了）。
 			// ★ 草稿闸门已彻底移除。实测那两个「固定槽位」其实是「上一次输入」的缓冲，
 			//   聊天框关掉之后里面仍然留着上次打的字，所以它不能代表「框现在开着」。
 			//   拿它当依据去按 Esc，就会在框其实关着时把房间关掉 / 弹出菜单（已多次踩到）。
@@ -617,6 +616,14 @@ public static class Sc2
 			}
 			// 旧方案（聊天框）：Enter 开框 → 等框出来 → Esc 关框。
 			//    ★ 这里绝不再补任何「前导 Esc」—— 框没开时按 Esc 会关房间/弹菜单。
+			//    这条路径有副作用（会发出草稿），所以保留「你正在操作就跳过」的守卫。
+			uint idle = IdleMs();
+			if (idle < ChatPokeGuardMs)
+			{
+				how = "你正在打字，跳过（" + idle + "ms 前有输入）";
+				return false;
+			}
+			how = "回车开聊天框";
 			bool flag = PostMessage(h, 0x100u, (nint)13, (nint)0x001C0001);
 			Thread.Sleep(40);
 			PostMessage(h, 0x101u, (nint)13, (nint)0xC01C0001u);

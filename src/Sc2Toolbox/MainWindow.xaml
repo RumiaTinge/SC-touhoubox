@@ -77,7 +77,7 @@
             </Border>
             <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
               <TextBlock Text="SC-touhoubox" Foreground="{StaticResource B.Text}" FontSize="14.5" FontWeight="SemiBold" />
-              <TextBlock Text="东方月灵传助手 · v1.1" Foreground="{StaticResource B.Dim}" FontSize="10.5" Margin="0,2,0,0" />
+              <TextBlock Text="东方月灵传助手 · v1.3" Foreground="{StaticResource B.Dim}" FontSize="10.5" Margin="0,2,0,0" />
             </StackPanel>
           </StackPanel>
           <StackPanel Grid.Row="1" Margin="10,0">
@@ -711,7 +711,7 @@
           <Border Style="{StaticResource Card}">
             <StackPanel>
               <TextBlock Text="关于" Style="{StaticResource CardHead}" />
-              <TextBlock Style="{StaticResource Body}" TextWrapping="Wrap" Text="SC-touhoubox v1.2 · 面向《星际争霸II》国服（网易/战网）公开房间的挂机保护 + 开局提醒 + 东方月灵传数据面板。" />
+              <TextBlock Style="{StaticResource Body}" TextWrapping="Wrap" Text="SC-touhoubox v1.3 · 面向《星际争霸II》国服（网易/战网）公开房间的挂机保护 + 开局提醒 + 东方月灵传数据面板。" />
               <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" Text="· 挂机判定：暴雪服务端在房间内要求「有键鼠输入送进游戏窗口」，约 5 分钟没有任何输入就断开连接。窗口可见但没焦点不算，最小化也不算。无预警、无开关、房主也关不掉。" />
               <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" Text="· 房间列表：读本机 touhou_client.exe 在 127.0.0.1:8030 提供的 /lobbyPlayerList（POST，返回冒号分隔的 10 个槽位）。只读，不发任何指令。" />
               <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" Text="· 保活方式：往游戏窗口投递方向键（↑↓←→）。不开聊天框、不发消息、不抢焦点，所以不会打断你正在打的字。" />
