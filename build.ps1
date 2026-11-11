@@ -33,6 +33,12 @@ if (Test-Path $artSrc) {
   if (Test-Path $artDst) { Remove-Item $artDst -Recurse -Force }
   Copy-Item $artSrc $artDst -Recurse -Force
 }
+$clientSrc = Join-Path $out 'client'
+if (Test-Path $clientSrc) {
+  $clientDst = Join-Path $Dist 'client'
+  if (Test-Path $clientDst) { Remove-Item $clientDst -Recurse -Force }
+  Copy-Item $clientSrc $clientDst -Recurse -Force
+}
 $files = Get-ChildItem $Dist -Recurse -File
 Write-Host ("package -> $Dist  ({0} 个文件, {1} MB)" -f $files.Count, [Math]::Round((($files | Measure-Object Length -Sum).Sum)/1MB, 2))
 

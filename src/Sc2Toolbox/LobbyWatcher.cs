@@ -223,6 +223,7 @@ public class LobbyWatcher
 					Ctx.Overlay.Apply(st, Nicks);
 				}
 				Ctx.Alerts.Feed(st);
+				MatchWatch.Feed(st);
 				if (Ctx.Main != null)
 				{
 					Ctx.Main.OnLobby(st);

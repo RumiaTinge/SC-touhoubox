@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
@@ -71,11 +71,25 @@ public partial class OverlayWindow : Window, IComponentConnector
 		InitializeComponent();
 		List.ItemsSource = Rows;
 		ChatList.ItemsSource = Chat;
+		DanmakuList.ItemsSource = DanmakuRows;
 		MiChat.IsChecked = Ctx.S.OverlayChat;
 		MiChatCmds.IsChecked = Ctx.S.OverlayChatCmds;
+		MiDanmaku.IsChecked = Ctx.S.OverlayDanmaku;
+		MiShowMatch.IsChecked = Ctx.S.OverlayShowMatch;
+		LiveDanmaku.Changed += delegate
+		{
+			try
+			{
+				((DispatcherObject)this).Dispatcher.BeginInvoke((Delegate)new Action(RefreshDanmaku), Array.Empty<object>());
+			}
+			catch
+			{
+			}
+		};
 		Loaded += delegate
 		{
 			RefreshChat();
+			RefreshDanmaku();
 		};
 		Ctx.Keep.Changed += () =>
 		{
@@ -94,6 +108,8 @@ public partial class OverlayWindow : Window, IComponentConnector
 		_top.Tick += delegate
 		{
 			KeepTopmost();
+			// 对局时长每秒走一格
+			RefreshMatchInfo();
 		};
 		_top.Start();
 		_chat = new DispatcherTimer
@@ -126,6 +142,7 @@ public partial class OverlayWindow : Window, IComponentConnector
 	private void Menu_Opened(object sender, RoutedEventArgs e)
 	{
 		_menuOpen = true;
+		SyncQuickMenu();
 		try
 		{
 			// 菜单弹出的是一个独立窗口，把它也设成 topmost，就不会被悬浮窗盖住
@@ -377,6 +394,7 @@ public partial class OverlayWindow : Window, IComponentConnector
 		{
 			TxtMe.Visibility = Visibility.Collapsed;
 		}
+		RefreshMatchInfo();
 	}
 
 	private static string Short(string handle)
@@ -478,6 +496,65 @@ public partial class OverlayWindow : Window, IComponentConnector
 		}
 	}
 
+	/// <summary>把快捷施法的当前开关状态刷到右键菜单上（菜单每次弹出前调一次）。</summary>
+	private void SyncQuickMenu()
+	{
+		try
+		{
+			MiQuick.IsChecked = Ctx.S.QuickCastEnabled;
+			MiQuickCancel.IsChecked = Ctx.S.QuickCastCancelWithRight;
+			MiQuickMatch.IsChecked = Ctx.S.QuickCastOnlyInMatch;
+			string text = QuickCast.NormButton(Ctx.S.QuickCastButton);
+			MiQuickLeft.IsChecked = (text == "left");
+			MiQuickRight.IsChecked = (text == "right");
+			MiQuickMiddle.IsChecked = (text == "middle");
+			string text2 = (QuickCast.Enabled ? (MatchWatch.CanCast ? "运行中" : "房间里") : "未启用");
+			MiQuickState.Header = "状态：" + text2 + " · 确认键 " + QuickCast.ButtonName(text) + " · " + MatchWatch.Text;
+		}
+		catch
+		{
+		}
+	}
+
+	private void Menu_Quick(object sender, RoutedEventArgs e)
+	{
+		Ctx.S.QuickCastEnabled = MiQuick.IsChecked;
+		CommitQuick();
+	}
+
+	private void Menu_QuickCancel(object sender, RoutedEventArgs e)
+	{
+		Ctx.S.QuickCastCancelWithRight = MiQuickCancel.IsChecked;
+		CommitQuick();
+	}
+
+	private void Menu_QuickMatch(object sender, RoutedEventArgs e)
+	{
+		Ctx.S.QuickCastOnlyInMatch = MiQuickMatch.IsChecked;
+		CommitQuick();
+	}
+
+	private void Menu_QuickButton(object sender, RoutedEventArgs e)
+	{
+		MenuItem menuItem = sender as MenuItem;
+		string raw = ((menuItem == null) ? null : (menuItem.Tag as string));
+		Ctx.S.QuickCastButton = QuickCast.NormButton(raw);
+		CommitQuick();
+	}
+
+	/// <summary>菜单里改了快捷施法设置之后：存盘、让引擎重新读一遍、把面板和菜单都刷一遍。</summary>
+	private void CommitQuick()
+	{
+		Ctx.S.Save();
+		QuickCast.Apply();
+		SyncQuickMenu();
+		if (Ctx.Main != null)
+		{
+			Ctx.Main.SyncFromSettings();
+			Ctx.Main.RefreshQuickStatus();
+		}
+	}
+
 	private void Menu_Chat(object sender, RoutedEventArgs e)
 	{
 		Ctx.S.OverlayChat = MiChat.IsChecked;
@@ -493,6 +570,45 @@ public partial class OverlayWindow : Window, IComponentConnector
 		RefreshChat();
 	}
 
+	private void Menu_ShowMatch(object sender, RoutedEventArgs e)
+	{
+		Ctx.S.OverlayShowMatch = MiShowMatch.IsChecked;
+		Ctx.S.Save();
+		RefreshMatchInfo();
+	}
+
+	/// <summary>底部那一行「进行中的对局」：站点上看到你的对局就显示比分和时长，没有就收起来。</summary>
+	private void RefreshMatchInfo()
+	{
+		try
+		{
+			if (TxtMatch == null)
+			{
+				return;
+			}
+			if (!Ctx.S.OverlayShowMatch)
+			{
+				TxtMatch.Visibility = Visibility.Collapsed;
+				return;
+			}
+			string text = LiveGame.Text;
+			if (string.IsNullOrEmpty(text))
+			{
+				TxtMatch.Visibility = Visibility.Collapsed;
+				return;
+			}
+			if (TxtMatch.Text != text)
+			{
+				TxtMatch.Text = text;
+			}
+			TxtMatch.Visibility = Visibility.Visible;
+		}
+		catch
+		{
+			TxtMatch.Visibility = Visibility.Collapsed;
+		}
+	}
+
 	/// <summary>房间列表 / 聊天记录各自的折叠状态刷到界面上。</summary>
 	private void ApplyFold()
 	{
@@ -502,6 +618,137 @@ public partial class OverlayWindow : Window, IComponentConnector
 		bool chatFold = Ctx.S.OverlayChatFold;
 		ChatBody.Visibility = (chatFold ? Visibility.Collapsed : Visibility.Visible);
 		ChatCaret.Text = (chatFold ? "▸" : "▾");
+		bool danmakuFold = Ctx.S.OverlayDanmakuFold;
+		DanmakuBody.Visibility = (danmakuFold ? Visibility.Collapsed : Visibility.Visible);
+		DanmakuCaret.Text = (danmakuFold ? "▸" : "▾");
+	}
+
+	/// <summary>一条已经渲染好的直播弹幕。</summary>
+	private sealed class DanmakuRow
+	{
+		public System.Windows.FrameworkElement Visual { get; set; }
+
+		public string Key { get; set; } = "";
+	}
+
+	/// <summary>悬浮窗里的直播弹幕列表。</summary>
+	private readonly ObservableCollection<DanmakuRow> DanmakuRows = new ObservableCollection<DanmakuRow>();
+
+	private string _danmakuLastKey = "";
+
+	private void DanmakuHead_Click(object sender, MouseButtonEventArgs e)
+	{
+		Ctx.S.OverlayDanmakuFold = !Ctx.S.OverlayDanmakuFold;
+		Ctx.S.Save();
+		ApplyFold();
+		e.Handled = true;
+	}
+
+	private void Menu_Danmaku(object sender, RoutedEventArgs e)
+	{
+		Ctx.S.OverlayDanmaku = MiDanmaku.IsChecked;
+		Ctx.S.Save();
+		RefreshDanmaku();
+	}
+
+	/// <summary>把 LiveDanmaku 的缓冲刷到悬浮窗：新来的追加、太旧的裁掉、滚到最底下。</summary>
+	public void RefreshDanmaku()
+	{
+		try
+		{
+			if (!Ctx.S.OverlayDanmaku || LiveDanmaku.NormalizeRoom(Ctx.S.DanmakuRoom).Length == 0)
+			{
+				DanmakuPanel.Visibility = Visibility.Collapsed;
+				return;
+			}
+			DanmakuPanel.Visibility = Visibility.Visible;
+			DanmakuLine[] array = LiveDanmaku.Snapshot();
+			TxtDanmakuHint.Text = (LiveDanmaku.Connected ? ("直播间 " + LiveDanmaku.Room + " · " + LiveDanmaku.Count + " 条") : "未连接");
+			bool flag = !LiveDanmaku.Connected;
+			TxtDanmakuState.Text = LiveDanmaku.Status;
+			TxtDanmakuState.Visibility = ((flag && array.Length == 0) ? Visibility.Visible : Visibility.Collapsed);
+			int num = 0;
+			if (_danmakuLastKey.Length > 0)
+			{
+				for (int num2 = array.Length - 1; num2 >= 0; num2--)
+				{
+					if (KeyOf(array[num2]) == _danmakuLastKey)
+					{
+						num = num2 + 1;
+						break;
+					}
+				}
+			}
+			for (int i = num; i < array.Length; i++)
+			{
+				DanmakuRow item = new DanmakuRow
+				{
+					Visual = BuildDanmakuLine(array[i]),
+					Key = KeyOf(array[i])
+				};
+				DanmakuRows.Add(item);
+			}
+			while (DanmakuRows.Count > 60)
+			{
+				DanmakuRows.RemoveAt(0);
+			}
+			if (array.Length > 0)
+			{
+				_danmakuLastKey = KeyOf(array[array.Length - 1]);
+			}
+			((DispatcherObject)this).Dispatcher.BeginInvoke((Delegate)new Action(delegate
+			{
+				try
+				{
+					DanmakuBody.ScrollToEnd();
+				}
+				catch
+				{
+				}
+			}), (DispatcherPriority)7, Array.Empty<object>());
+		}
+		catch
+		{
+		}
+	}
+
+	private static string KeyOf(DanmakuLine line)
+	{
+		return line.At.Ticks + "|" + line.Text;
+	}
+
+	/// <summary>一条弹幕：时间 + 昵称（淡色）+ 正文，醒目留言加底色。</summary>
+	private System.Windows.FrameworkElement BuildDanmakuLine(DanmakuLine line)
+	{
+		TextBlock textBlock = new TextBlock
+		{
+			FontSize = 11.5,
+			TextWrapping = (TextWrapping)1,
+			MaxWidth = 280
+		};
+		textBlock.Inlines.Add(new Run(line.Time + " ")
+		{
+			Foreground = (Brush)FindResource("B.Dim")
+		});
+		textBlock.Inlines.Add(new Run(line.User + "：")
+		{
+			Foreground = (Brush)FindResource(line.Super ? "B.Warn" : "B.Accent2")
+		});
+		textBlock.Inlines.Add(new Run(line.Text)
+		{
+			Foreground = (Brush)FindResource(line.Super ? "B.Warn" : "B.Text")
+		});
+		if (!line.Super)
+		{
+			return textBlock;
+		}
+		return new Border
+		{
+			Background = new SolidColorBrush(Color.FromArgb(36, 255, 196, 84)),
+			CornerRadius = new CornerRadius(4.0),
+			Padding = new Thickness(4.0, 1.0, 4.0, 1.0),
+			Child = textBlock
+		};
 	}
 
 	private void RoomHead_Click(object sender, MouseButtonEventArgs e)

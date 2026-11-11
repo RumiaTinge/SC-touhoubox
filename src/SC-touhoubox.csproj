@@ -39,6 +39,7 @@
   <ItemGroup>
     <Resource Include="app.ico" LogicalName="app.ico" />
     <Resource Include="brand.png" LogicalName="brand.png" />
+    <Resource Include="Sc2Toolbox\qq_group_qr.png" LogicalName="qq_group_qr.png" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Nmpq" Version="1.0.1" />
@@ -48,5 +49,7 @@
     <Content Include="..\art\**\*" Link="art\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- 技能文案表（从 GameStrings 提取） -->
     <Content Include="Sc2Toolbox\ability_text.tsv" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 内置 touhou_client（房间接口），由程序按需安装到 LocalAppData -->
+    <Content Include="client\touhou_client.exe" Link="client\touhou_client.exe" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

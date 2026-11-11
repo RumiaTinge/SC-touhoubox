@@ -181,6 +181,9 @@ public static class Sc2
 	private static extern bool GetWindowRect(nint h, out RECT r);
 
 	[DllImport("user32.dll")]
+	private static extern bool ScreenToClient(nint h, ref Point p);
+
+	[DllImport("user32.dll")]
 	private static extern int GetSystemMetrics(int i);
 
 	public static nint Find()
@@ -329,7 +332,7 @@ public static class Sc2
 		return WaitFg(h, 400);
 	}
 
-	private static void SendMouse(int dx, int dy, uint flags, uint data = 0u)
+	private static bool SendMouse(int dx, int dy, uint flags, uint data = 0u)
 	{
 		INPUT[] array = new INPUT[1];
 		array[0].type = 0u;
@@ -337,7 +340,7 @@ public static class Sc2
 		array[0].u.mi.dy = dy;
 		array[0].u.mi.dwFlags = flags;
 		array[0].u.mi.mouseData = data;
-		SendInput(1u, array, Marshal.SizeOf(typeof(INPUT)));
+		return SendInput(1u, array, Marshal.SizeOf(typeof(INPUT))) == 1;
 	}
 
 	private static void SendKey(byte vk)
@@ -352,6 +355,67 @@ public static class Sc2
 		SendInput(1u, array, Marshal.SizeOf(typeof(INPUT)));
 		Thread.Sleep(45);
 		SendInput(1u, array2, Marshal.SizeOf(typeof(INPUT)));
+	}
+
+	/// <summary>快捷施法用：在当前光标位置点一下鼠标（把技能落到光标处）。
+	/// 只移动 0 像素、不读屏幕坐标，所以对全屏游戏也安全。
+	/// button 支持 left / right / middle；SendInput 没被系统接受时（例如游戏以更高权限运行、
+	/// 模拟输入被 UIPI 挡掉），退一步直接给游戏窗口投递一对鼠标消息。</summary>
+	public static bool ClickMouse(string button, int holdMs = 8)
+	{
+		string text = (button ?? "").Trim().ToLowerInvariant();
+		uint down = 2u;
+		uint up = 4u;
+		uint msgDown = 513u;
+		uint msgUp = 514u;
+		uint mk = 1u;
+		if (text == "right")
+		{
+			down = 8u;
+			up = 16u;
+			msgDown = 516u;
+			msgUp = 517u;
+			mk = 2u;
+		}
+		else if (text == "middle")
+		{
+			down = 32u;
+			up = 64u;
+			msgDown = 519u;
+			msgUp = 520u;
+			mk = 16u;
+		}
+		bool flag = SendMouse(0, 0, down);
+		if (holdMs > 0)
+		{
+			Thread.Sleep(holdMs);
+		}
+		flag = SendMouse(0, 0, up) && flag;
+		if (flag)
+		{
+			return true;
+		}
+		return PostClick(Find(), msgDown, msgUp, mk);
+	}
+
+	/// <summary>ClickMouse 的退路：把一对鼠标消息直接投给游戏窗口（坐标换算成客户区）。</summary>
+	private static bool PostClick(nint h, uint msgDown, uint msgUp, uint mk)
+	{
+		if (h == IntPtr.Zero)
+		{
+			return false;
+		}
+		if (!GetCursorPos(out var p) || !ScreenToClient(h, ref p))
+		{
+			return false;
+		}
+		nint lParam = (nint)((p.Y << 16) | (p.X & 0xFFFF));
+		bool flag = PostMessage(h, msgDown, (nint)mk, lParam);
+		if (flag)
+		{
+			Thread.Sleep(8);
+		}
+		return PostMessage(h, msgUp, IntPtr.Zero, lParam) && flag;
 	}
 
 	public static void Jiggle()

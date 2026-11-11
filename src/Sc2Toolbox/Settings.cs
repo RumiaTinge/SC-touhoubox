@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -26,6 +26,18 @@ public class Settings
 
 	public bool OverlayOnlyFilled { get; set; }
 
+	/// <summary>悬浮窗底部显示网站上的最近对局信息。</summary>
+	public bool OverlayShowMatch { get; set; } = true;
+
+	/// <summary>悬浮窗里显示 B 站直播弹幕面板。</summary>
+	public bool OverlayDanmaku { get; set; } = true;
+
+	/// <summary>直播弹幕面板折叠状态。</summary>
+	public bool OverlayDanmakuFold { get; set; }
+
+	/// <summary>要拉哪个直播间的弹幕（B 站直播间号，短号或长号都行；空=不连）。</summary>
+	public string DanmakuRoom { get; set; } = "";
+
 	public bool OverlayCompact { get; set; }
 
 	/// <summary>悬浮窗里显示聊天记录面板。</summary>
@@ -51,6 +63,33 @@ public class Settings
 	public bool PauseInMatch { get; set; } = true;
 	/// <summary>后台保活时用「回车开聊天框再 Esc」代替抖鼠标（不发消息）。</summary>
 	public bool KeepChatPoke { get; set; } = true;
+
+	/// <summary>快捷施法（智能施法）：按下技能键，助手在光标处补一下左键。</summary>
+	public bool QuickCastEnabled { get; set; }
+
+	/// <summary>参与快捷施法的技能键，逗号分隔；默认是《东方月灵传》的技能栏 Q/W/E/R/T。</summary>
+	public string QuickCastKeys { get; set; } = "Q,W,E,R,T";
+
+	/// <summary>游戏收到按键之后隔多久落点（毫秒），太小可能游戏还没选中技能。</summary>
+	public int QuickCastDelayMs { get; set; } = 30;
+
+	/// <summary>按住不放时的连发间隔（毫秒）。</summary>
+	public int QuickCastGapMs { get; set; } = 100;
+
+	/// <summary>补哪个鼠标键：left / right / middle。默认左键。</summary>
+	public string QuickCastButton { get; set; } = "left";
+
+	/// <summary>补完点之后跟着点一下右键，把游戏里残留的「等待选择目标」状态取消掉（本来就补右键时自动跳过）。</summary>
+	public bool QuickCastCancelWithRight { get; set; } = true;
+
+	/// <summary>鼠标正按着要补的那个键时跳过这一下：避免模拟点击打断自己的拖动/走位。</summary>
+	public bool QuickCastSafeMouse { get; set; } = true;
+
+	/// <summary>按下技能键的瞬间就点（不等落点延迟）：消息队列有序，先按键后点击，中间不留空档。</summary>
+	public bool QuickCastInstantClick { get; set; } = true;
+
+	/// <summary>在房间里不补点：房间列表里还有你（没开局或者刚打完回房间）时不补点，离开房间就放行。</summary>
+	public bool QuickCastOnlyInMatch { get; set; } = true;
 
 	public bool AlertEnabled { get; set; } = true;
 

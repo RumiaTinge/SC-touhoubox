@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -33,6 +34,12 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 
 	private int _lines;
 
+	private DispatcherTimer _clientWatch;
+
+	private bool _clientBannerDismissed;
+
+	private string _clientError = "";
+
 	[DllImport("dwmapi.dll")]
 	private static extern int DwmSetWindowAttribute(nint h, int attr, ref int val, int size);
 
@@ -47,6 +54,36 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			try
 			{
 				((DispatcherObject)this).Dispatcher.BeginInvoke((Delegate)new Action(RefreshKeepStatus), Array.Empty<object>());
+			}
+			catch
+			{
+			}
+		};
+		QuickCast.Changed += () =>
+		{
+			try
+			{
+				((DispatcherObject)this).Dispatcher.BeginInvoke((Delegate)new Action(RefreshQuickStatus), Array.Empty<object>());
+			}
+			catch
+			{
+			}
+		};
+		MatchWatch.Changed += () =>
+		{
+			try
+			{
+				((DispatcherObject)this).Dispatcher.BeginInvoke((Delegate)new Action(RefreshQuickStatus), Array.Empty<object>());
+			}
+			catch
+			{
+			}
+		};
+		LiveDanmaku.Changed += () =>
+		{
+			try
+			{
+				((DispatcherObject)this).Dispatcher.BeginInvoke((Delegate)new Action(RefreshDanmakuStatus), Array.Empty<object>());
 			}
 			catch
 			{
@@ -73,6 +110,8 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			RestoreFolds();
 		};
 		RefreshKeepStatus();
+		RefreshQuickStatus();
+		RefreshDanmakuStatus();
 		TxtAboutPaths.Text = "设置文件：" + Settings.FilePath + "\n日志文件：" + L.File + "\n房间接口：POST http://127.0.0.1:" + Ctx.S.LobbyPort + "/lobbyPlayerList";
 		TbLog.Text = L.Tail(200);
 		RefreshBank();
@@ -85,6 +124,15 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			CheckBankChanged();
 		};
 		_bankWatch.Start();
+		_clientWatch = new DispatcherTimer
+		{
+			Interval = TimeSpan.FromSeconds(6.0)
+		};
+		_clientWatch.Tick += delegate
+		{
+			RefreshClientUi();
+		};
+		_clientWatch.Start();
 	}
 
 	protected override void OnSourceInitialized(EventArgs e)
@@ -245,8 +293,22 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			}
 			SwCloseToTray.IsChecked = s.CloseToTray;
 			SwTrayHint.IsChecked = s.TrayHintOnClose;
+			SwQuick.IsChecked = s.QuickCastEnabled;
+			SwQuickMatch.IsChecked = s.QuickCastOnlyInMatch;
+			SwQuickCancel.IsChecked = s.QuickCastCancelWithRight;
+			TbQuickKeys.Text = s.QuickCastKeys;
+			TbQuickGap.Text = s.QuickCastGapMs.ToString();
+			string text2 = QuickCast.NormButton(s.QuickCastButton);
+			RbBtnLeft.IsChecked = text2 == "left";
+			RbBtnRight.IsChecked = text2 == "right";
+			RbBtnMiddle.IsChecked = text2 == "middle";
+			if (RbBtnLeft.IsChecked != true && RbBtnRight.IsChecked != true && RbBtnMiddle.IsChecked != true)
+			{
+				RbBtnLeft.IsChecked = true;
+			}
 			RbLocal.IsChecked = s.P5LocalTab;
 			RbOnline.IsChecked = !s.P5LocalTab;
+			TbDanmakuRoom.Text = s.DanmakuRoom;
 			LoadPreview();
 		}
 		finally
@@ -292,7 +354,25 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		settings2.ToastCorner = toastCorner;
 		s.CloseToTray = SwCloseToTray.IsChecked == true;
 		s.TrayHintOnClose = SwTrayHint.IsChecked == true;
+		s.QuickCastEnabled = SwQuick.IsChecked == true;
+		s.QuickCastOnlyInMatch = SwQuickMatch.IsChecked == true;
+		s.QuickCastCancelWithRight = SwQuickCancel.IsChecked == true;
+		s.QuickCastButton = QuickButtonName();
 		ApplyNums();
+	}
+
+	/// <summary>面板上选的施法确认键。</summary>
+	private string QuickButtonName()
+	{
+		if (RbBtnRight.IsChecked == true)
+		{
+			return "right";
+		}
+		if (RbBtnMiddle.IsChecked == true)
+		{
+			return "middle";
+		}
+		return "left";
 	}
 
 	private void ApplyRuntimes()
@@ -320,7 +400,9 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		{
 			Ctx.Keep.Stop();
 		}
+		QuickCast.Apply();
 		RefreshKeepStatus();
+		RefreshQuickStatus();
 	}
 
 	private void Persist()
@@ -336,6 +418,9 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		s.RoomSlots = ParseNum(TbSlots, 2, 10, 10);
 		s.ToastSeconds = ParseNum(TbToastSec, 1, 60, 4);
 		s.AlertAutoHideSec = ParseNum(TbAutoHide, 0, 3600, 30);
+		s.QuickCastGapMs = ParseNum(TbQuickGap, 40, 1000, 100);
+		string text = QuickCast.Normalize(TbQuickKeys.Text);
+		Ctx.S.QuickCastKeys = (string.IsNullOrEmpty(text) ? QuickCast.DefaultKeys : text);
 	}
 
 	private static int ParseNum(TextBox tb, int min, int max, int fallback)
@@ -362,17 +447,90 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 
 	private void Nav_Checked(object sender, RoutedEventArgs e)
 	{
-		if (_ready)
+		if (!_ready)
 		{
-			P1.Visibility = ((Nav1.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
-			P2.Visibility = ((Nav2.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
-			P3.Visibility = ((Nav3.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
-			P5.Visibility = ((Nav5.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
-			P4.Visibility = ((Nav4.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible);
-			base.Dispatcher.BeginInvoke((Action)delegate
+			return;
+		}
+		ScrollViewer page = null;
+		string title = null;
+		if (Nav1.IsChecked == true)
+		{
+			page = P1;
+			title = "房间悬浮窗";
+		}
+		else if (Nav2.IsChecked == true)
+		{
+			page = P2;
+			title = "挂机等房";
+		}
+		else if (Nav3.IsChecked == true)
+		{
+			page = P3;
+			title = "开局警报";
+		}
+		else if (Nav6.IsChecked == true)
+		{
+			page = P6;
+			title = "快捷施法";
+		}
+		else if (Nav5.IsChecked == true)
+		{
+			page = P5;
+			title = "对战数据";
+		}
+		else if (Nav4.IsChecked == true)
+		{
+			page = P4;
+			title = "日志与关于";
+		}
+		P1.Visibility = ((page == P1) ? Visibility.Visible : Visibility.Collapsed);
+		P2.Visibility = ((page == P2) ? Visibility.Visible : Visibility.Collapsed);
+		P3.Visibility = ((page == P3) ? Visibility.Visible : Visibility.Collapsed);
+		P6.Visibility = ((page == P6) ? Visibility.Visible : Visibility.Collapsed);
+		P5.Visibility = ((page == P5) ? Visibility.Visible : Visibility.Collapsed);
+		P4.Visibility = ((page == P4) ? Visibility.Visible : Visibility.Collapsed);
+		if (TxtBarTitle != null && title != null)
+		{
+			TxtBarTitle.Text = title;
+		}
+		if (page != null)
+		{
+			page.BeginAnimation(UIElement.OpacityProperty, null);
+			page.Opacity = 0.0;
+			page.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(170L))
 			{
-				RestoreFolds();
-			}, DispatcherPriority.Loaded);
+				EasingFunction = new CubicEase
+				{
+					EasingMode = EasingMode.EaseOut
+				}
+			});
+		}
+		base.Dispatcher.BeginInvoke((Action)delegate
+		{
+			RestoreFolds();
+		}, DispatcherPriority.Loaded);
+	}
+
+	private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+	{
+		if ((Keyboard.Modifiers & ModifierKeys.Control) == 0 || (Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+		{
+			return;
+		}
+		RadioButton nav = e.Key switch
+		{
+			Key.D1 or Key.NumPad1 => Nav1, 
+			Key.D2 or Key.NumPad2 => Nav2, 
+			Key.D3 or Key.NumPad3 => Nav3, 
+			Key.D6 or Key.NumPad6 => Nav6, 
+			Key.D4 or Key.NumPad4 => Nav4, 
+			Key.D5 or Key.NumPad5 => Nav5, 
+			_ => null, 
+		};
+		if (nav != null)
+		{
+			nav.IsChecked = true;
+			e.Handled = true;
 		}
 	}
 
@@ -410,6 +568,8 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			ApplyNums();
 			Persist();
 			RefreshKeepStatus();
+			QuickCast.Apply();
+			RefreshQuickStatus();
 		}
 	}
 
@@ -422,6 +582,8 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			ApplyNums();
 			Persist();
 			RefreshKeepStatus();
+			QuickCast.Apply();
+			RefreshQuickStatus();
 			Keyboard.ClearFocus();
 		}
 	}
@@ -473,6 +635,70 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		catch (Exception ex)
 		{
 			L.W("打开目录失败: " + ex.Message);
+		}
+	}
+
+	// 直播弹幕：填直播间号后连上 chat.laplace.live 那套匿名接口
+	public void RefreshDanmakuStatus()
+	{
+		try
+		{
+			string room = LiveDanmaku.NormalizeRoom(Ctx.S.DanmakuRoom);
+			if (room.Length == 0)
+			{
+				TxtDanmakuStatus.Text = "还没设置直播间，填上号点「连接」就会在悬浮窗里显示弹幕。";
+				return;
+			}
+			if (LiveDanmaku.Connected)
+			{
+				TxtDanmakuStatus.Text = "直播间 " + room + " · 已连接 · 已收 " + LiveDanmaku.Count + " 条弹幕。";
+			}
+			else
+			{
+				TxtDanmakuStatus.Text = "直播间 " + room + " · " + LiveDanmaku.Status;
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private void DanmakuApply()
+	{
+		string room = LiveDanmaku.NormalizeRoom(TbDanmakuRoom.Text);
+		TbDanmakuRoom.Text = room;
+		Ctx.S.DanmakuRoom = room;
+		Ctx.S.Save();
+		LiveDanmaku.Apply();
+		RefreshDanmakuStatus();
+	}
+
+	private void BtnDanmakuApply_Click(object sender, RoutedEventArgs e)
+	{
+		DanmakuApply();
+	}
+
+	private void BtnDanmakuStop_Click(object sender, RoutedEventArgs e)
+	{
+		TbDanmakuRoom.Text = "";
+		DanmakuApply();
+	}
+
+	private void DanmakuRoom_LostFocus(object sender, RoutedEventArgs e)
+	{
+		if (_ready && LiveDanmaku.NormalizeRoom(TbDanmakuRoom.Text) != LiveDanmaku.NormalizeRoom(Ctx.S.DanmakuRoom))
+		{
+			DanmakuApply();
+		}
+	}
+
+	private void DanmakuRoom_KeyDown(object sender, KeyEventArgs e)
+	{
+		if ((int)e.Key == 6)
+		{
+			DanmakuApply();
+			Keyboard.ClearFocus();
+			e.Handled = true;
 		}
 	}
 
@@ -817,6 +1043,58 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		}
 	}
 
+	private void BtnOpenGroup_Click(object sender, RoutedEventArgs e)
+	{
+		try
+		{
+			Process.Start(new ProcessStartInfo("https://qm.qq.com/q/t97gUIaMFy")
+			{
+				UseShellExecute = true
+			});
+		}
+		catch (Exception ex)
+		{
+			L.W("打开加群链接失败：" + ex.Message);
+			ShowGroupHint("打开失败，请手动访问下方链接");
+		}
+	}
+
+	private void BtnCopyGroup_Click(object sender, RoutedEventArgs e)
+	{
+		try
+		{
+			Clipboard.SetText("1109297288");
+			ShowGroupHint("群号已复制");
+		}
+		catch (Exception ex)
+		{
+			L.W("复制群号失败：" + ex.Message);
+			ShowGroupHint("复制失败，请手动记下群号");
+		}
+	}
+
+	private void ShowGroupHint(string text)
+	{
+		if (TxtGroupHint == null)
+		{
+			return;
+		}
+		TxtGroupHint.Text = text;
+		DispatcherTimer timer = new DispatcherTimer
+		{
+			Interval = TimeSpan.FromSeconds(2.2)
+		};
+		timer.Tick += delegate
+		{
+			timer.Stop();
+			if (TxtGroupHint != null)
+			{
+				TxtGroupHint.Text = "";
+			}
+		};
+		timer.Start();
+	}
+
 	private void MatchRow_Click(object sender, MouseButtonEventArgs e)
 	{
 		try
@@ -905,7 +1183,7 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 			{
 				text = text + "\n最后刷新：" + last.When.ToString("HH:mm:ss");
 			}
-			if (last != null && last.Ok)
+			if (last != null && last.Ok && !string.IsNullOrEmpty(last.Raw))
 			{
 				text = text + "\n原始串：" + last.Raw;
 			}
@@ -927,10 +1205,135 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 				}
 				SideDot.Fill = (Brush)FindResource(keep.Running ? (side != null && side.Ok ? "B.Ok" : "B.Warn") : "B.Dim");
 			}
+
+			// 页头运行状态 pill
+			if (TxtKeepPill != null)
+			{
+				Brush pillBrush = (Brush)FindResource(keep.Running ? "B.Ok" : "B.Warn");
+				TxtKeepPill.Text = (keep.Running ? "运行中" : "未启动");
+				TxtKeepPill.Foreground = pillBrush;
+				KeepPillDot.Fill = pillBrush;
+				KeepPill.Background = (Brush)FindResource(keep.Running ? "B.OkSoft" : "B.WarnSoft");
+			}
 		}
 		catch
 		{
 		}
+	}
+
+	public void RefreshQuickStatus()
+	{
+		try
+		{
+			bool flag = QuickCast.Enabled;
+			string text = QuickCast.ButtonName(QuickCast.ButtonText);
+			string text2 = (flag ? ("快捷施法：运行中 · 键 " + QuickCast.KeysText + " · 确认键 " + text + " · 连发 " + Ctx.S.QuickCastGapMs + "ms") : ("快捷施法：已停止 · 键 " + QuickCast.KeysText));
+			if (flag && QuickCast.ChatOpen)
+			{
+				text2 += " · 聊天中，不补点";
+			}
+			text2 = text2 + "\n本次已确认 " + QuickCast.Casts + " 次";
+			if (QuickCast.LastCast != DateTime.MinValue)
+			{
+				double totalSeconds = (DateTime.Now - QuickCast.LastCast).TotalSeconds;
+				text2 = text2 + "，最近一次 " + ((totalSeconds < 60.0) ? ((int)totalSeconds + " 秒前") : ((int)(totalSeconds / 60.0) + " 分钟前"));
+			}
+			text2 = text2 + "\n房间状态：" + MatchWatch.Text;
+			if (Ctx.S.QuickCastOnlyInMatch && !string.IsNullOrEmpty(MatchWatch.LastNote))
+			{
+				text2 = text2 + "（" + MatchWatch.LastNote + "）";
+			}
+			if (TxtQuickStatus != null)
+			{
+				TxtQuickStatus.Text = text2;
+			}
+			if (TxtQuickNote != null)
+			{
+				TxtQuickNote.Text = (string.IsNullOrEmpty(QuickCast.LastNote) ? "" : QuickCast.LastNote);
+			}
+			if (TxtQuickPill != null)
+			{
+				bool flag2 = MatchWatch.CanCast;
+				string text3 = "未启用";
+				string text4 = "B.Dim";
+				string text5 = "B.WarnSoft";
+				if (flag)
+				{
+					if (flag2)
+					{
+						text3 = "运行中";
+						text4 = "B.Ok";
+						text5 = "B.OkSoft";
+					}
+					else
+					{
+						text3 = "房间里";
+					}
+				}
+				Brush brush = (Brush)FindResource(text4);
+				TxtQuickPill.Text = text3;
+				TxtQuickPill.Foreground = brush;
+				QuickPillDot.Fill = brush;
+				QuickPill.Background = (Brush)FindResource(text5);
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private void BtnQuickStart_Click(object sender, RoutedEventArgs e)
+	{
+		SwQuick.IsChecked = true;
+		SyncToSettings();
+		Persist();
+		QuickCast.Apply();
+		RefreshQuickStatus();
+	}
+
+	private void BtnQuickStop_Click(object sender, RoutedEventArgs e)
+	{
+		SwQuick.IsChecked = false;
+		SyncToSettings();
+		Persist();
+		QuickCast.Apply();
+		RefreshQuickStatus();
+	}
+
+	private void QuickKeys_LostFocus(object sender, RoutedEventArgs e)
+	{
+		if (_ready && !_sync)
+		{
+			QuickKeysApply();
+		}
+	}
+
+	private void QuickKeys_KeyDown(object sender, KeyEventArgs e)
+	{
+		//IL_0001: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0007: Invalid comparison between Unknown and I4
+		if ((int)e.Key == 6)
+		{
+			QuickKeysApply();
+			Keyboard.ClearFocus();
+		}
+	}
+
+	private void QuickKeysApply()
+	{
+		string text = QuickCast.Normalize(TbQuickKeys.Text);
+		if (string.IsNullOrEmpty(text))
+		{
+			text = QuickCast.DefaultKeys;
+		}
+		if (TbQuickKeys.Text != text)
+		{
+			TbQuickKeys.Text = text;
+		}
+		Ctx.S.QuickCastKeys = text;
+		Persist();
+		QuickCast.Apply();
+		RefreshQuickStatus();
 	}
 
 	private static string ModeName(string m)
@@ -1003,6 +1406,133 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 		catch (Exception ex)
 		{
 			TxtTouhouState.Text = "打开英雄名表失败：" + ex.Message;
+		}
+	}
+
+	private void BtnClientInstall_Click(object sender, RoutedEventArgs e)
+	{
+		_clientError = "";
+		if (!TouhouClient.ManagedInstalled && !TouhouClient.Install(out string installError))
+		{
+			_clientError = "安装失败：" + installError;
+			RefreshClientUi();
+			return;
+		}
+		if (!TouhouClient.AnyRunning && !TouhouClient.StartManaged(out string startError))
+		{
+			_clientError = "启动失败：" + startError;
+		}
+		RefreshClientUi();
+	}
+
+	private void BtnClientStart_Click(object sender, RoutedEventArgs e)
+	{
+		_clientError = "";
+		string error = "";
+		bool ok;
+		if (TouhouClient.ManagedInstalled)
+		{
+			ok = TouhouClient.StartManaged(out error);
+		}
+		else if (TouhouClient.ExternalInstalled)
+		{
+			ok = TouhouClient.StartExternal(out error);
+		}
+		else
+		{
+			error = "还没有安装 touhou_client。";
+			ok = false;
+		}
+		_clientError = (ok ? "" : error);
+		RefreshClientUi();
+	}
+
+	private void BtnClientStop_Click(object sender, RoutedEventArgs e)
+	{
+		_clientError = (TouhouClient.StopManaged(out string error) ? "" : error);
+		RefreshClientUi();
+	}
+
+	private void BtnClientLater_Click(object sender, RoutedEventArgs e)
+	{
+		_clientBannerDismissed = true;
+		ClientBanner.Visibility = Visibility.Collapsed;
+	}
+
+	public void RefreshClientUi()
+	{
+		if (!_ready)
+		{
+			return;
+		}
+		try
+		{
+			bool flag = TouhouClient.AnyRunning;
+			bool flag2 = TouhouClient.ManagedInstalled;
+			bool flag3 = TouhouClient.ExternalInstalled;
+			bool flag4 = TouhouClient.ManagedRunning;
+			string text;
+			Brush brush;
+			if (flag4)
+			{
+				text = "运行中 · 随本程序启动";
+				brush = Res("B.Ok", Brushes.LimeGreen);
+			}
+			else if (flag)
+			{
+				text = "运行中 · 外部启动";
+				brush = Res("B.Ok", Brushes.LimeGreen);
+			}
+			else if (flag2)
+			{
+				text = "已安装 · 未运行";
+				brush = Res("B.Warn", Brushes.Goldenrod);
+			}
+			else if (flag3)
+			{
+				text = "已安装（外部）· 未运行";
+				brush = Res("B.Dim", Brushes.Gray);
+			}
+			else
+			{
+				text = "未安装 · 房间数据读不到";
+				brush = Res("B.Danger", Brushes.IndianRed);
+			}
+			if (_clientError.Length > 0)
+			{
+				text = text + " · " + _clientError;
+			}
+			TxtClientState.Text = text;
+			ClientDot.Fill = brush;
+			BtnClientInstall.Visibility = ((!flag2 && !flag3) ? Visibility.Visible : Visibility.Collapsed);
+			BtnClientStart.Visibility = ((!flag && (flag2 || flag3)) ? Visibility.Visible : Visibility.Collapsed);
+			BtnClientStop.Visibility = (flag4 ? Visibility.Visible : Visibility.Collapsed);
+			bool flag5 = !_clientBannerDismissed && !flag && (flag2 || (!flag2 && !flag3));
+			ClientBanner.Visibility = (flag5 ? Visibility.Visible : Visibility.Collapsed);
+			if (flag5)
+			{
+				if (!flag2 && !flag3)
+				{
+					TxtClientBannerTitle.Text = "未检测到 touhou_client（房间接口）";
+					TxtClientBannerSub.Text = ((_clientError.Length > 0) ? _clientError : "安装内置版本后，仅在本程序运行时启动，退出时自动关闭。");
+					BtnBannerClient.Content = "安装并启动";
+					BtnBannerClient.IsEnabled = TouhouClient.BundledAvailable;
+					if (!TouhouClient.BundledAvailable)
+					{
+						TxtClientBannerSub.Text = "安装包内缺少 client\\touhou_client.exe。";
+					}
+				}
+				else
+				{
+					TxtClientBannerTitle.Text = "touhou_client 已安装，但没有在运行";
+					TxtClientBannerSub.Text = ((_clientError.Length > 0) ? _clientError : "点击启动拉起房间接口；关闭本程序时它会一并退出。");
+					BtnBannerClient.Content = "启动";
+					BtnBannerClient.IsEnabled = true;
+				}
+			}
+		}
+		catch
+		{
 		}
 	}
 
@@ -1199,15 +1729,18 @@ public partial class MainWindow : Window, IComponentConnector, IStyleConnector
 				bitmapImage.UriSource = new Uri(alertImage);
 				bitmapImage.EndInit();
 				ImgPreview.Source = bitmapImage;
+				ImgPreview.Visibility = Visibility.Visible;
 			}
 			else
 			{
 				ImgPreview.Source = null;
+				ImgPreview.Visibility = Visibility.Collapsed;
 			}
 		}
 		catch
 		{
 			ImgPreview.Source = null;
+			ImgPreview.Visibility = Visibility.Collapsed;
 		}
 	}
 

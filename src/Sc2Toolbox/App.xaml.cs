@@ -133,6 +133,8 @@ public partial class App : System.Windows.Application
 
 	private const uint VK_K = 75u;
 
+	private const uint VK_Q = 81u;
+
 	private static Mutex _mtx;
 
 	private static ImageSource _appIcon;
@@ -148,6 +150,8 @@ public partial class App : System.Windows.Application
 	private bool _hkOverlay;
 
 	private bool _hkKeep;
+
+	private bool _hkQuick;
 
 	private uint _taskbarCreated;
 
@@ -277,6 +281,15 @@ public partial class App : System.Windows.Application
 		Ctx.Main = new MainWindow();
 		Ctx.Main.Title = "SC-touhoubox · 东方月灵传助手";
 		Ctx.Main.Show();
+		// 内置 touhou_client：已安装且当前没在跑就自动拉起；随本程序退出而结束
+		try
+		{
+			TouhouClient.Boot();
+			Ctx.Main.RefreshClientUi();
+		}
+		catch
+		{
+		}
 		if (L.LastError.Length > 0)
 		{
 			L.W("注意：有路径写入失败 → " + L.LastError);
@@ -293,6 +306,26 @@ public partial class App : System.Windows.Application
 		}
 		SetupTray();
 		RegisterHotkeys();
+		// 快捷施法：设置里开着就接管（默认关）
+		QuickCast.Apply();
+		// 站点上「进行中的对局」：每 10 秒问一次，悬浮窗底部显示比分和时长
+		LiveGame.Start();
+		// 站点上看到你在打，就让等房立刻醒一次去读 PauseReason（不然最多要等一个间隔才停）
+		LiveGame.Changed += delegate
+		{
+			try
+			{
+				if (LiveGame.InGame && Ctx.S.PauseInMatch)
+				{
+					Ctx.Keep.PulseNow();
+				}
+			}
+			catch
+			{
+			}
+		};
+		// 直播弹幕：设置里填了直播间号就自动连
+		LiveDanmaku.Apply();
 	}
 
 	internal static ImageSource AppIcon()
@@ -622,8 +655,9 @@ public partial class App : System.Windows.Application
 			_hkTest = RegisterHotKey(handle, 1, 16391u, 65u);
 			_hkOverlay = RegisterHotKey(handle, 2, 16391u, 84u);
 			_hkKeep = RegisterHotKey(handle, 3, 16391u, 75u);
+			_hkQuick = RegisterHotKey(handle, 4, 16391u, VK_Q);
 			_taskbarCreated = RegisterWindowMessage("TaskbarCreated");
-			L.W("热键：" + (_hkTest ? "Ctrl+Alt+Shift+A=试响/关闭警报" : "Ctrl+Alt+Shift+A=注册失败（被占用）") + "，" + (_hkOverlay ? "Ctrl+Alt+Shift+T=显示/隐藏悬浮窗" : "Ctrl+Alt+Shift+T=注册失败（被占用）") + "，" + (_hkKeep ? "Ctrl+Alt+Shift+K=保活开关" : "Ctrl+Alt+Shift+K=注册失败（被占用）"));
+			L.W("热键：" + (_hkTest ? "Ctrl+Alt+Shift+A=试响/关闭警报" : "Ctrl+Alt+Shift+A=注册失败（被占用）") + "，" + (_hkOverlay ? "Ctrl+Alt+Shift+T=显示/隐藏悬浮窗" : "Ctrl+Alt+Shift+T=注册失败（被占用）") + "，" + (_hkKeep ? "Ctrl+Alt+Shift+K=保活开关" : "Ctrl+Alt+Shift+K=注册失败（被占用）") + "，" + (_hkQuick ? "Ctrl+Alt+Shift+Q=快捷施法开关" : "Ctrl+Alt+Shift+Q=注册失败（被占用）"));
 		}
 		catch (Exception ex)
 		{
@@ -674,6 +708,15 @@ public partial class App : System.Windows.Application
 				ShowPanel();
 				Ctx.Main.SyncFromSettings();
 				Ctx.Main.RefreshKeepStatus();
+				handled = true;
+				break;
+			case 4:
+				Ctx.S.QuickCastEnabled = !Ctx.S.QuickCastEnabled;
+				Ctx.S.Save();
+				QuickCast.Apply();
+				Ctx.Main.SyncFromSettings();
+				Ctx.Main.RefreshQuickStatus();
+				L.W("热键：快捷施法" + (Ctx.S.QuickCastEnabled ? "开" : "关"));
 				handled = true;
 				break;
 			}
@@ -768,8 +811,30 @@ public partial class App : System.Windows.Application
 	{
 		try
 		{
+			// 只结束本程序安装并启动的副本；用户自己装的版本不碰
+			TouhouClient.Shutdown();
+		}
+		catch
+		{
+		}
+		try
+		{
 			// 退出前把这一局的聊天存下来，下次开机能接着看（隔天会自动清空）
 			TouhouChat.SaveCache();
+		}
+		catch
+		{
+		}
+		try
+		{
+			LiveGame.Stop();
+		}
+		catch
+		{
+		}
+		try
+		{
+			LiveDanmaku.Stop();
 		}
 		catch
 		{
@@ -790,6 +855,10 @@ public partial class App : System.Windows.Application
 				if (_hkKeep)
 				{
 					UnregisterHotKey(handle, 3);
+				}
+				if (_hkQuick)
+				{
+					UnregisterHotKey(handle, 4);
 				}
 				_src.RemoveHook(WndProc);
 			}

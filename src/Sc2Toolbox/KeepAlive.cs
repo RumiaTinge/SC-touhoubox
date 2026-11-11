@@ -146,6 +146,12 @@ public void Start()
 	{
 		try
 		{
+			// 第一优先：站点上能看到「这局正在进行」。房间列表在开局后经常还是上一份缓存，
+			// 光靠它会出现「已经在打了，等房还在继续送键」。
+			if (LiveGame.FreshInGame)
+			{
+				return "站点上看到你的对局正在进行（比分 " + LiveGame.Team1 + " : " + LiveGame.Team2 + "，第 " + LiveGame.Round + " 回合），防挂机自动暂停";
+			}
 			LobbyState lobbyState = ((Ctx.Watcher != null) ? Ctx.Watcher.Last : null);
 			if (lobbyState == null || !lobbyState.Ok)
 			{

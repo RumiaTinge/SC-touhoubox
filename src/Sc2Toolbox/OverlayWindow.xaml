@@ -18,6 +18,21 @@
             <MenuItem Name="MiClickThrough" Header="鼠标穿透（点不到）" IsCheckable="True" Click="Menu_ClickThrough" />
             <MenuItem Name="MiChat" Header="显示聊天记录" IsCheckable="True" Click="Menu_Chat" />
             <MenuItem Name="MiChatCmds" Header="聊天里也显示指令行（-vk 之类）" IsCheckable="True" Click="Menu_ChatCmds" />
+            <MenuItem Name="MiDanmaku" Header="显示直播弹幕" IsCheckable="True" Click="Menu_Danmaku" />
+            <MenuItem Name="MiShowMatch" Header="显示进行中的对局" IsCheckable="True" Click="Menu_ShowMatch" />
+            <Separator />
+            <MenuItem Header="快捷施法">
+              <MenuItem Name="MiQuick" Header="启用快捷施法" IsCheckable="True" Click="Menu_Quick" />
+              <MenuItem Name="MiQuickCancel" Header="施法后补右键取消" IsCheckable="True" Click="Menu_QuickCancel" />
+              <MenuItem Name="MiQuickMatch" Header="在房间里不生效" IsCheckable="True" Click="Menu_QuickMatch" />
+              <Separator />
+              <MenuItem Name="MiQuickLeft" Header="用左键确认" IsCheckable="True" Click="Menu_QuickButton" Tag="left" />
+              <MenuItem Name="MiQuickRight" Header="用右键确认" IsCheckable="True" Click="Menu_QuickButton" Tag="right" />
+              <MenuItem Name="MiQuickMiddle" Header="用中键确认" IsCheckable="True" Click="Menu_QuickButton" Tag="middle" />
+              <Separator />
+              <MenuItem Name="MiQuickState" Header="状态：未启用" IsEnabled="False" />
+              <MenuItem Header="技能键 / 详细设置…" Click="Menu_Settings" />
+            </MenuItem>
             <Separator />
             <MenuItem Header="关闭悬浮窗" Click="Menu_Hide" />
           </ContextMenu>
@@ -115,11 +130,31 @@
           </ItemsControl>
         </ScrollViewer>
       </StackPanel>
+      <StackPanel Name="DanmakuPanel" Margin="10,6,10,2" Visibility="Collapsed">
+        <Grid Name="DanmakuHead" Margin="3,0,3,4" Background="#00FFFFFF" MouseLeftButtonDown="DanmakuHead_Click" ToolTip="点一下折叠 / 展开直播弹幕">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Name="DanmakuCaret" Text="▾" Foreground="{StaticResource B.Muted}" FontSize="11" Margin="0,0,5,0" VerticalAlignment="Center" />
+            <TextBlock Text="直播弹幕" Foreground="{StaticResource B.Text}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Name="TxtDanmakuHint" Text="" HorizontalAlignment="Right" Foreground="{StaticResource B.Dim}" FontSize="10.5" VerticalAlignment="Center" />
+        </Grid>
+        <ScrollViewer Name="DanmakuBody" MaxHeight="170" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl Name="DanmakuList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <ContentControl Content="{Binding Visual}" Margin="3,1" HorizontalAlignment="Left" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <TextBlock Name="TxtDanmakuState" Text="" Foreground="{StaticResource B.Dim}" FontSize="10.5" Margin="3,2,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
+      </StackPanel>
       <Border Height="1" Background="#14FFFFFF" Margin="0,4,0,0" />
       <StackPanel Margin="13,9,13,12">
         <TextBlock Name="TxtMe" Text="" Foreground="{StaticResource B.Accent2}" FontSize="11.5" TextWrapping="Wrap" Visibility="Collapsed" />
         <TextBlock Name="TxtKeep" Text="等房：等待中" Foreground="#FF9AA7B4" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,0" />
         <TextBlock Name="TxtData" Text="房间接口：连接中…" Foreground="{StaticResource B.Dim}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" />
+        <TextBlock Name="TxtMatch" Text="" Foreground="{StaticResource B.Accent2}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
         <TextBlock Name="TxtNote" Text="" Foreground="{StaticResource B.Warn}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
       </StackPanel>
     </StackPanel>
